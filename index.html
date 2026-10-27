@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>梦澄指数 YSI · Yumesumi Index</title>
+<meta name="description" content="Yumesumi Index (YSI) — 用指数表达日记，用记录留住时间。">
+<link rel="stylesheet" href="./assets/css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">YSI</div>
+      <div class="brand-text">
+        <strong>梦澄指数</strong>
+        <span>Yumesumi Index</span>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="主导航">
+      <a href="#/overview" data-nav="overview">
+        <span class="nav-label">概览</span><span class="nav-sub">Overview</span>
+      </a>
+      <a href="#/journal" data-nav="journal">
+        <span class="nav-label">日记</span><span class="nav-sub">Journal</span>
+      </a>
+      <a href="#/history" data-nav="history">
+        <span class="nav-label">历史</span><span class="nav-sub">History</span>
+      </a>
+      <a href="#/methodology" data-nav="methodology">
+        <span class="nav-label">说明</span><span class="nav-sub">Methodology</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="status-line" id="side-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="side-status-text">正在读取数据…</span>
+      </div>
+      <p class="side-note">A Journal, Expressed as an Index.</p>
+    </div>
+  </aside>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="topbar-head">
+        <h1 id="page-title">概览</h1>
+        <p id="page-sub">指数总览</p>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="btn" data-action="export-json">导出 JSON</button>
+        <button type="button" class="btn" data-action="export-csv">导出 CSV</button>
+        <button type="button" class="btn btn-primary" data-action="new">新建记录</button>
+      </div>
+    </header>
+
+    <div id="pending-bar" class="pending-bar" hidden></div>
+
+    <main id="view" class="view" tabindex="-1"></main>
+
+    <footer class="footer">
+      <p>Yumesumi Index · 梦澄指数 — 一个人的时间序列，不是金融市场。</p>
+      <p class="footer-note">本站为静态站点，网页上的“保存记录”只写入浏览器本地暂存，不会修改 GitHub 仓库。正式发布流程见<a href="#/methodology">指数说明</a>。</p>
+    </footer>
+  </div>
+
+</div>
+
+<div id="modal-root"></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Yumesumi Index",
+  "name_zh": "梦澄指数",
+  "symbol": "YSI",
+  "base_value": 1000,
+  "base_date": "2026-10-27",
+  "frequency": "daily",
+  "data_mode": "manual"
+}

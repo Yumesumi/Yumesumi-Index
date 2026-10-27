@@ -1,0 +1,18 @@
+# 依赖与构建产物
+node_modules/
+package-lock.json
+package.json
+
+# 本地测试截图（临时产物）
+tools/shots/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# 日志
+*.log
+npm-debug.log*
