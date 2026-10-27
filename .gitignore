@@ -3,6 +3,9 @@ node_modules/
 package-lock.json
 package.json
 
+# Agent 工具内部数据（工作记忆等），不属于站点内容
+.workbuddy/
+
 # 本地测试截图（临时产物）
 tools/shots/
 

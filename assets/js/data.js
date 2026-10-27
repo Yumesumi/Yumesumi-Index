@@ -80,7 +80,9 @@ export function validateOHLC(ohlc) {
   for (const key of ['open', 'high', 'low', 'close']) {
     const raw = ohlc[key];
     const num = typeof raw === 'number' ? raw : Number(raw);
-    if (!Number.isFinite(num)) {
+    if (raw === null || raw === undefined || raw === '') {
+      errors.push(`${names[key]}尚未填写`);
+    } else if (!Number.isFinite(num)) {
       errors.push(`${names[key]}必须是有效数字`);
     } else {
       values[key] = num;
