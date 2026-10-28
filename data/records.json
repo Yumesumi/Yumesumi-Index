@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "date": "2026-10-27",
+    "title": "测试用例1",
+    "body": "啊嗯\n在这里写正文。\n\n> 必填：title、close，以及正文本身。\n> 可选：mood、energy（0–10）、tags（逗号分隔）。\n> open 留空则取上一条记录的收盘价；high 留空则取 max(open, close)；\n> low 留空则取 min(open, close)。\n>\n> 日期以文件名为准。修改这个文件后运行：\n>   node tools/journal.mjs check\n>   node tools/journal.mjs commit",
+    "mood": "急眼了",
+    "energy": 4,
+    "tags": [
+      "生活"
+    ],
+    "ohlc": {
+      "open": 1000,
+      "high": 1000,
+      "low": -200,
+      "close": -200
+    }
+  }
+]
