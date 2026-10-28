@@ -103,6 +103,8 @@ K 线图使用原生 SVG，无图表库：
 
 构建或任一步校验失败时，不会上传 artifact，也不会发布新版本。并发组为 `pages`，生产发布不会被后续推送打断。
 
+> 域名经 Cloudflare 代理时，HTML 默认缓存 10 分钟（`max-age=600`）。发布后若仍看到旧版本，purge Cloudflare 缓存或等待缓存过期。资源文件名带内容哈希，新版本上线后旧缓存不会指向不存在的脚本。
+
 ### 仓库设置
 
 GitHub 仓库 **Settings → Pages** 中：
@@ -255,9 +257,12 @@ npm run check          # 数据层 72 项 + 日记流程 48 项 + 正文渲染 2
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
 npm run check:e2e      # 75 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
+npm run verify:production # 24 项线上检查（默认 https://index.yumesumi.cyou/）
 ```
 
 `e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。
+
+`npm run verify:production` 直接访问线上域名，验证 HTML、数据、CNAME、HTTPS 跳转、字体、图表、返回主站按钮、移动端菜单焦点与哈希路由。可用 `YSI_PRODUCTION_URL` 指向其他部署地址。
 
 `tools/journal-e2e.mjs` 在临时沙箱中自建 bare 远端，完整跑 `new → check → sync → commit → push`，不会触碰真实仓库或 GitHub。
 
