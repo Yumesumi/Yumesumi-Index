@@ -68,14 +68,38 @@ export function renderChrome(state) {
   document.title = title;
 }
 
+let menuTrap = null;
+let menuReturnFocus = null;
+
 export function openMobileNav() {
   const panel = document.getElementById('mobile-nav');
   if (!panel) return;
+  menuReturnFocus = document.activeElement;
   panel.hidden = false;
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.setAttribute('aria-label', '导航菜单');
   document.body.classList.add('menu-open');
   const toggle = document.querySelector('[data-action="toggle-menu"]');
   if (toggle) toggle.setAttribute('aria-expanded', 'true');
   requestAnimationFrame(() => panel.classList.add('is-open'));
+  const focusables = () => [...panel.querySelectorAll('a[href], button:not([disabled])')]
+    .filter((node) => node.offsetParent !== null);
+  menuTrap = (event) => {
+    if (event.key !== 'Tab') return;
+    const nodes = focusables();
+    if (!nodes.length) return;
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  document.addEventListener('keydown', menuTrap);
   const first = panel.querySelector('.mobile-nav-link');
   if (first) first.focus({ preventScroll: true });
 }
@@ -87,6 +111,12 @@ export function closeMobileNav() {
   document.body.classList.remove('menu-open');
   const toggle = document.querySelector('[data-action="toggle-menu"]');
   if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  if (menuTrap) document.removeEventListener('keydown', menuTrap);
+  menuTrap = null;
+  if (menuReturnFocus instanceof HTMLElement && menuReturnFocus.isConnected) {
+    menuReturnFocus.focus({ preventScroll: true });
+  }
+  menuReturnFocus = null;
   window.setTimeout(() => { panel.hidden = true; }, 240);
 }
 

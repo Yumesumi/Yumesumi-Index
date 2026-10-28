@@ -253,7 +253,7 @@ close: 1086.42
 ```bash
 npm run check          # 数据层 72 项 + 日记流程 48 项 + 正文渲染 21 项 + 源数据检查
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
-npm run check:e2e      # 68 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
+npm run check:e2e      # 75 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
 ```
 

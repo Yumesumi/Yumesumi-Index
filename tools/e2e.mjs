@@ -130,6 +130,11 @@ try {
     const vp = document.querySelector('#overview-chart .chart-viewport');
     return vp.scrollLeft + vp.clientWidth >= vp.scrollWidth - 4;
   }));
+  await page.locator('#overview-chart .candle-hit').last().hover({ force: true });
+  await page.waitForTimeout(200);
+  check('K 线悬停提示可见', await page.locator('#overview-chart .chart-tip').isVisible());
+  check('悬停提示含 OHLC', (await page.locator('#overview-chart .chart-tip').innerText()).includes('开'));
+  await page.mouse.move(0, 0);
   await page.click('.seg-btn[data-range="90"]');
   await page.waitForTimeout(500);
   check('90 天档位被选中', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
