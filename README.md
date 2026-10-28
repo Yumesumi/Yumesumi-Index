@@ -266,8 +266,8 @@ close: 1086.42
 ## 验证
 
 ```bash
-node tools/verify.mjs         # 数据层：52 项单元校验
-node tools/e2e.mjs            # 端到端：56 项页面校验（需 playwright-core）
+node tools/verify.mjs         # 数据层：67 项单元校验
+node tools/e2e.mjs            # 端到端：63 项页面校验（需 playwright-core）
 node tools/journal-verify.mjs # 日记流程：47 项单元校验
 node tools/journal-e2e.mjs    # 日记流程：46 项端到端（含本地 bare 远端 push）
 node tools/acceptance.mjs     # 验收：23 项（需 playwright-core）
@@ -284,6 +284,29 @@ node tools/e2e.mjs
 脚本默认访问 `http://127.0.0.1:8099`，可用 `YSI_BASE` 覆盖；需先运行 `node tools/serve.mjs 8099`。
 
 `tools/journal-e2e.mjs` 在临时沙箱中自建 bare 仓库跑完整 push 流程，不会触碰真实仓库或 GitHub。
+
+---
+
+## 代理与网络
+
+`tools/v2ray.mjs` 管理本机 V2rayN，并在代理不可用时自动切换节点。
+
+```bash
+node tools/v2ray.mjs status              # 查看状态
+node tools/v2ray.mjs nodes               # 列出节点（按延迟排序）
+node tools/v2ray.mjs use <序号|名称>     # 切换节点
+node tools/v2ray.mjs ensure              # 确保可用，不通则自动换节点
+node tools/v2ray.mjs with-proxy <命令...> # 在代理可用时执行命令
+```
+
+设计上的两个取舍：
+
+- **不直接写注册表。** 系统代理由 V2rayN 自己在启动时设置——这是它的官方行为（每次启动/重启时强制应用）。脚本改配置后重启它即可，无需触碰注册表。
+- **切节点必须重启 V2rayN。** 核心配置（路由规则、出站参数）由 V2rayN 生成，直接改 `config.json` 会丢配置。
+
+`tools/journal.mjs` 的 push 已接入该工具：直连失败 → 环境代理 → SOCKS5 → 自动切换 V2rayN 节点重试。
+
+> 由脚本启动的 V2rayN 会随命令结束被回收。需要代理长期常驻，请手动启动 V2rayN；`with-proxy` 已覆盖「一次命令内完成网络操作」的场景。
 
 ---
 
