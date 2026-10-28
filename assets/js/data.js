@@ -158,6 +158,22 @@ export function sortRecords(records) {
 /* ---------------- 指标计算 ---------------- */
 
 /**
+ * 计算涨跌幅。
+ *
+ * 常规做法是 (close / prevClose - 1) × 100，但当前收为负数时该式会翻转符号：
+ * 从 -200 涨到 -100 是上涨（+100），公式却算出 -50%。前收为 0 时更会除零。
+ *
+ * 因此这里改用「以变动幅度对前收的绝对值取比」的写法，符号由 change 单独决定：
+ *   涨跌幅 = change / |prevClose| × 100
+ * 这样不论前收是正、负还是 0，方向都与涨跌额保持一致。
+ * 前收为 0 时没有可比的基数，涨跌幅记为 0，涨跌额仍然准确。
+ */
+export function computeChangePct(close, prevClose) {
+  if (!Number.isFinite(close) || !Number.isFinite(prevClose) || prevClose === 0) return 0;
+  return ((close - prevClose) / Math.abs(prevClose)) * 100;
+}
+
+/**
  * 为记录补齐派生指标：前收、涨跌额、涨跌幅、相对基准的累计变化。
  * 第一条记录没有前一条正式收盘价，统一以基准点位作为比较对象。
  */
@@ -167,9 +183,9 @@ export function computeMetrics(records, baseValue = BASE_VALUE) {
   return sorted.map((record) => {
     const close = record.ohlc.close;
     const change = close - prevClose;
-    const changePct = prevClose ? (close / prevClose - 1) * 100 : 0;
+    const changePct = computeChangePct(close, prevClose);
     const cumChange = close - baseValue;
-    const cumPct = baseValue ? (close / baseValue - 1) * 100 : 0;
+    const cumPct = computeChangePct(close, baseValue);
     const enriched = { ...record, prevClose, change, changePct, cumChange, cumPct };
     prevClose = close;
     return enriched;

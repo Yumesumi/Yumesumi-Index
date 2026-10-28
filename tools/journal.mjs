@@ -290,28 +290,40 @@ function gitRun(args, label) {
 }
 
 /**
- * 推送到远端。默认直连，失败后按需走本机 SOCKS5 代理重试
- * （一次性参数，不写入 git 全局配置）。
+ * 推送到远端。默认直连，失败后按序尝试若干代理：
+ *   1. 环境变量里的代理（HTTPS_PROXY / https_proxy）
+ *   2. 本机 SOCKS5 代理 127.0.0.1:10808
+ * 全部使用一次性 git 参数，不写入 git 全局配置。
  */
 function pushWithFallback(branch) {
   const direct = git(['push', 'origin', branch]);
   if (direct.status === 0) return { ok: true, viaProxy: false };
 
   const stderr = `${direct.stderr || ''}${direct.stdout || ''}`;
-  const looksLikeNetwork = /CONNECT tunnel failed|502|TLS|SSL|Unable to access|Connection reset|timed out/i.test(stderr);
+  const looksLikeNetwork = /CONNECT tunnel failed|502|TLS|SSL|Unable to access|Connection reset|timed out|Could not connect|Failed to connect|Empty reply/i.test(stderr);
   if (!looksLikeNetwork) {
     fail('push 失败（非网络原因）');
     if (direct.stderr) out(direct.stderr.trim());
     return { ok: false, viaProxy: false };
   }
 
-  info('直连失败，改用本机 SOCKS5 代理 (127.0.0.1:10808) 重试…');
-  const viaProxy = git(['-c', 'http.proxy=socks5://127.0.0.1:10808', 'push', 'origin', branch]);
-  if (viaProxy.status === 0) return { ok: true, viaProxy: true };
+  // 依次尝试可用的代理，全部用一次性参数，不污染 git 全局配置
+  const candidates = [];
+  const envProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+  if (envProxy && !candidates.includes(envProxy)) candidates.push(envProxy);
+  const socks = 'socks5://127.0.0.1:10808';
+  if (!candidates.includes(socks)) candidates.push(socks);
 
-  fail('push 失败（代理重试后仍失败）');
-  if (viaProxy.stderr) out(viaProxy.stderr.trim());
-  return { ok: false, viaProxy: true };
+  for (const proxy of candidates) {
+    info(`直连失败，改用代理 ${proxy} 重试…`);
+    // 只设置 http.proxy：git 的 https.proxy 在部分代理下会导致 CONNECT 隧道失败
+    const attempt = git(['-c', `http.proxy=${proxy}`, 'push', 'origin', branch]);
+    if (attempt.status === 0) return { ok: true, viaProxy: proxy };
+    if (attempt.stderr) info(attempt.stderr.trim().split('\n')[0]);
+  }
+
+  fail('push 失败（所有代理重试后仍失败）');
+  return { ok: false, viaProxy: null };
 }
 
 /* ---------------- 子命令 ---------------- */
@@ -475,7 +487,7 @@ function cmdCommit(args) {
     info(`  git push origin ${branch}`);
     process.exit(2);
   }
-  ok(`已推送到 origin/${branch}${pushed.viaProxy ? '（经由本机 SOCKS5 代理）' : ''}`);
+  ok(`已推送到 origin/${branch}${pushed.viaProxy ? `（经由代理 ${pushed.viaProxy}）` : ''}`);
   info('GitHub Pages 会在数分钟后自动重新构建并发布。');
 }
 

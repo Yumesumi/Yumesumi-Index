@@ -535,10 +535,12 @@ function renderMethodology(host) {
         <h2>涨跌如何计算</h2>
         <ul>
           <li>日涨跌额 = 当日收盘价 − 上一条有效记录的收盘价</li>
-          <li>日涨跌幅 = (当日收盘价 ÷ 上一条有效记录收盘价 − 1) × 100%</li>
-          <li>累计变化 = (最新收盘价 ÷ ${formatNumber(state.meta.base_value)} − 1) × 100%</li>
+          <li>日涨跌幅 = 日涨跌额 ÷ |上一条有效记录收盘价| × 100%</li>
+          <li>累计变化 = (最新收盘价 − ${formatNumber(state.meta.base_value)}) ÷ ${formatNumber(state.meta.base_value)} × 100%</li>
         </ul>
         <p>第一条记录没有前一条收盘价，统一以基准点位 ${formatNumber(state.meta.base_value)} 作为比较对象。所有涨跌都由数据算出，页面任何地方都不单独硬编码这些数字。</p>
+        <h3>点位可以是负数</h3>
+        <p>点位不限定为正数。当期出现负数时，涨跌幅的分母取前收的<strong>绝对值</strong>，这样涨跌额的符号与涨跌幅始终一致——从 −200 涨到 −100 记作 +50%，而不是被除法翻转成负数。前收为 0 时没有可比基数，涨跌幅记为 0，涨跌额仍然准确。</p>
       </section>
 
       <section>

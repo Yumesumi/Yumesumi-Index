@@ -32,9 +32,14 @@ function computeScale(metrics, baseValue) {
     max = baseValue * 1.1;
   }
   if (min === max) {
-    min -= baseValue * 0.02;
-    max += baseValue * 0.02;
+    // 所有点位重合时给一个可见的区间：以 0 为中心的相对幅度，
+    // 不能用 baseValue 作为基准，否则基准为 0 或负数时区间会失真。
+    const spread = Math.max(Math.abs(min), 1) * 0.02;
+    min -= spread;
+    max += spread;
   }
+  // 基准线始终纳入范围，保证参考线可见——即使点位为负数。
+  // 这是金融终端的惯例：基准是读数的参照，不能被裁掉。
   const padding = (max - min) * 0.08;
   return { min: min - padding, max: max + padding };
 }

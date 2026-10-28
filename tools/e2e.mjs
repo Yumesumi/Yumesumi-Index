@@ -29,6 +29,12 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 
 console.log('\n[空数据状态]');
+// 用路由拦截模拟空数据，让本段断言与仓库当前是否有数据无关
+await page.route('**/data/records.json', (route) => route.fulfill({
+  status: 200,
+  contentType: 'application/json; charset=utf-8',
+  body: '[]',
+}));
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
 check('页面标题正确', (await page.title()).includes('Yumesumi Index'));
@@ -39,6 +45,8 @@ check('空状态指数显示为 —', emptyStat.trim() === '—', `实际="${emp
 check('图表区域提示无数据', (await page.locator('#overview-chart .empty').count()) === 1);
 check('侧栏显示 0 条正式记录', (await page.locator('#side-status-text').textContent()).includes('0 条'));
 await page.screenshot({ path: `${OUT}/01-empty-overview.png`, fullPage: true });
+// 解除拦截，后续测试使用仓库真实数据
+await page.unroute('**/data/records.json');
 
 console.log('\n[写入演示数据]');
 const sample = await page.evaluate(async () => {
@@ -57,8 +65,21 @@ console.log('\n[加载演示数据后]');
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
 check('无 JS 报错（有数据时）', errors.length === 0, errors.join(' | '));
-check('侧栏显示 0 条正式记录（仓库文件仍是空）',
-  (await page.locator('#side-status-text').textContent()).includes('0 条'));
+// 侧栏条数应与仓库数据文件的实际条数一致（不写死数字）
+const repoCount = await page.evaluate(async () => {
+  const res = await fetch('./data/records.json');
+  return (await res.json()).length;
+});
+const sidebarText = await page.locator('#side-status-text').textContent();
+check('侧栏条数与仓库数据一致', sidebarText.includes(`${repoCount} 条`), `仓库=${repoCount} 侧栏="${sidebarText}"`);
+
+// 后续各段都依赖这些日期：仓库已有日期 + 本次导入的日期
+const repoDates = await page.evaluate(async () => {
+  const res = await fetch('./data/records.json');
+  return (await res.json()).map((r) => r.date);
+});
+const importedDates = [...sample.records.map((r) => r.date), '2026-12-01', '2026-12-02'];
+const uniqueDateCount = new Set([...repoDates, ...importedDates]).size;
 
 console.log('\n[通过导入功能载入演示数据]');
 await page.goto(`${BASE}/#/methodology`, { waitUntil: 'networkidle' });
@@ -94,11 +115,82 @@ check('基准参考线存在', (await page.locator('#overview-chart line[stroke=
 check('最近日记显示条目', (await page.locator('.entry').count()) >= 3);
 await page.screenshot({ path: `${OUT}/02-overview-with-data.png`, fullPage: true });
 
+console.log('\n[负数点位：图表与指标渲染]');
+{
+  // 导入一份含负数点位的记录，验证站点能正确渲染与计算
+  const negRecords = [
+    {
+      date: '2026-12-01', title: '负数点位测试', body: '正文', mood: '测试', energy: 5, tags: [],
+      ohlc: { open: 1000, high: 1000, low: -200, close: -200 },
+    },
+    {
+      date: '2026-12-02', title: '负数区间上涨', body: '正文', mood: '测试', energy: 5, tags: [],
+      ohlc: { open: -200, high: -100, low: -250, close: -100 },
+    },
+  ];
+  await page.goto(`${BASE}/#/methodology`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(400);
+  await page.click('[data-action="import-json"]');
+  await page.waitForTimeout(500);
+  await page.setInputFiles('#import-pick', {
+    name: 'negative.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(negRecords), 'utf-8'),
+  });
+  await page.waitForTimeout(800);
+  await page.click('#do-import');
+  await page.waitForTimeout(600);
+
+  await page.goto(`${BASE}/#/overview`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
+
+  check('负数场景无 JS 报错', errors.length === 0, errors.join(' | '));
+
+  // 最新一条收盘 -100，应显示为负数
+  const negIdx = await page.locator('.stat-value.lg').first().textContent();
+  check('首页指数显示负数', negIdx.includes('-') || negIdx.includes('−'), `实际="${negIdx.trim()}"`);
+
+  // K 线数量 = 去重后的总记录数（同日期只算一根）
+  const negCandles = await page.evaluate(() => [...document.querySelectorAll('#overview-chart rect')]
+    .filter((r) => r.getAttribute('fill') !== 'transparent').length);
+  const uniqueDates = uniqueDateCount;
+  check('负数场景 K 线数量正确', negCandles === uniqueDates, `期望=${uniqueDates} 实际=${negCandles}`);
+
+  // 坐标轴刻度应包含 0（负数区间）
+  const axisTexts = await page.locator('#overview-chart text').allTextContents();
+  check('坐标轴包含 0 刻度', axisTexts.some((t) => t.trim() === '0'), axisTexts.join(','));
+
+  // Y 轴不应出现 NaN / Infinity
+  check('坐标轴无 NaN/Infinity', !axisTexts.some((t) => /NaN|Infinity/i.test(t)), axisTexts.join(','));
+
+  // 基准线仍应可见
+  check('负数场景基准线仍存在', (await page.locator('#overview-chart line[stroke="#B8A77A"]').count()) >= 1);
+
+  // 负数区间上涨的记录，涨跌幅应为正（在日记页查看条目）
+  await page.goto(`${BASE}/#/journal`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(700);
+  const negPctCells = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#journal-list .entry')];
+    const target = rows.find((r) => r.textContent.includes('负数区间上涨'));
+    if (!target) return null;
+    const m = target.textContent.match(/([+−-][\d.,]+)\s*\(([+−-][\d.,]+)%\)/);
+    return m ? { change: m[1], pct: m[2] } : null;
+  });
+  check('负数区间上涨显示为正涨跌幅', negPctCells !== null && negPctCells.pct.startsWith('+'),
+    JSON.stringify(negPctCells));
+
+  await page.goto(`${BASE}/#/overview`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/11-negative-values.png`, fullPage: true });
+}
+
 console.log('\n[历史页与表格]');
 await page.goto(`${BASE}/#/history`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
 const rows = await page.locator('table.data tbody tr').count();
-check('行情表有 5 行', rows === 5, `实际=${rows}`);
+// 表格行数 = 仓库条数 + 导入的 5 条演示 + 2 条负数，但同日期是「更新」而非新增
+const expectedRows = uniqueDateCount;
+check('行情表行数与数据总量一致', rows === expectedRows, `期望=${expectedRows} 实际=${rows}`);
 const headers = await page.locator('table.data thead th').allTextContents();
 check('表头包含日期/开盘/最高/最低/收盘/日变化',
   ['日期', '开盘', '最高', '最低', '收盘', '日变化'].every((h) => headers.includes(h)),
@@ -186,7 +278,13 @@ await page.goto(`${BASE}/#/journal`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
 const afterCount = await page.locator('.entry').count();
 check('同日期更新后条目数不变', afterCount === beforeCount, `之前=${beforeCount} 之后=${afterCount}`);
-check('标题已更新', (await page.locator('.entry-title').first().textContent()).includes('改'));
+// 按日期定位目标条目，不依赖排序位置
+const updatedTitle = await page.evaluate(() => {
+  const entry = [...document.querySelectorAll('.entry')]
+    .find((e) => e.querySelector('.entry-date')?.textContent.includes('2026-11-01'));
+  return entry?.querySelector('.entry-title')?.textContent || '';
+});
+check('标题已更新', updatedTitle.includes('改'), `实际="${updatedTitle}"`);
 
 console.log('\n[导出对话框]');
 await page.click('[data-action="export-json"]');

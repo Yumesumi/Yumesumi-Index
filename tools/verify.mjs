@@ -95,8 +95,57 @@ check('导出 JSON 可被回读', (() => {
   return r.ok && r.records.length === 3;
 })());
 
-console.log('\n[JSON 导入校验]');
-check('非法 JSON 被拒', parseRecordsJSON('{bad').ok === false);
+console.log('\n[负数点位]');
+{
+  // 点位可以为负：涨跌幅的符号必须始终与涨跌额一致
+  const neg = computeMetrics([
+    { date: '2026-10-27', ohlc: { open: 1000, high: 1000, low: -200, close: -200 } },
+    { date: '2026-10-28', ohlc: { open: -200, high: -100, low: -250, close: -100 } },
+    { date: '2026-10-29', ohlc: { open: -100, high: -100, low: -300, close: -300 } },
+  ], 1000);
+  check('负数收盘可被计算', neg[0].ohlc.close === -200);
+  check('首条负数涨跌额 = -1200', near(neg[0].change, -1200));
+  check('首条负数涨跌幅 = -120%', near(neg[0].changePct, -120));
+  check('负数区间的上涨方向正确（前收 -200 → -100）', near(neg[1].changePct, 50), `实际=${neg[1].changePct}`);
+  check('负数区间的下跌方向正确（前收 -100 → -300）', near(neg[2].changePct, -200), `实际=${neg[2].changePct}`);
+  check('负数累计变化相对基准', near(neg[2].cumChange, -1300) && near(neg[2].cumPct, -130));
+  check('涨跌额与涨跌幅符号始终一致', neg.every((r) => (
+    (r.change > 0 && r.changePct > 0)
+    || (r.change < 0 && r.changePct < 0)
+    || (r.change === 0 && r.changePct === 0)
+  )));
+}
+{
+  // 前收为 0 时不应产生 Infinity / NaN
+  const zero = computeMetrics([
+    { date: '2026-10-27', ohlc: { open: 0, high: 0, low: 0, close: 0 } },
+    { date: '2026-10-28', ohlc: { open: 0, high: 50, low: -50, close: 50 } },
+  ], 1000);
+  check('前收为 0 时涨跌幅不产生 NaN', Number.isFinite(zero[1].changePct), String(zero[1].changePct));
+  check('前收为 0 时涨跌额仍准确', near(zero[1].change, 50));
+}
+{
+  // 负数 OHLC 关系校验
+  const base = { date: '2026-10-27', title: 't', body: 'b' };
+  check('全负 OHLC 关系合法时通过',
+    validateRecord({ ...base, ohlc: { open: -200, high: -100, low: -300, close: -250 } }).length === 0);
+  check('负数下 high < open 仍被拒',
+    validateRecord({ ...base, ohlc: { open: -200, high: -250, low: -300, close: -240 } }).length > 0);
+  check('负数下 low > close 仍被拒',
+    validateRecord({ ...base, ohlc: { open: -200, high: -100, low: -190, close: -200 } }).length > 0);
+  check('全 0 OHLC 合法（平盘）',
+    validateRecord({ ...base, ohlc: { open: 0, high: 0, low: 0, close: 0 } }).length === 0);
+}
+{
+  // 负数记录可导出与回读
+  const negRecs = [{ date: '2026-10-27', title: '负', body: '负正文', mood: '', energy: null, tags: [],
+    ohlc: { open: -200, high: -100, low: -300, close: -250 } }];
+  const csvNeg = toCSV(negRecs, 1000);
+  check('CSV 正确输出负数', csvNeg.includes('-250') && csvNeg.includes('-300'));
+  check('负数记录可被 JSON 回读', parseRecordsJSON(JSON.stringify(toExportRecords(negRecs))).ok);
+}
+
+console.log('\n[JSON 导入校验]');check('非法 JSON 被拒', parseRecordsJSON('{bad').ok === false);
 check('根节点非数组被拒', parseRecordsJSON('{"a":1}').ok === false);
 check('重复日期被拒', parseRecordsJSON(JSON.stringify([
   { date: '2026-10-20', title: 'a', body: 'a', ohlc: { open: 1, high: 2, low: 0.5, close: 1.5 } },

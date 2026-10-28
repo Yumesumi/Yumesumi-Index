@@ -43,6 +43,9 @@ fs.cpSync(path.join(REAL_REPO, 'journal'), path.join(repo, 'journal'), { recursi
 for (const f of fs.readdirSync(path.join(repo, 'journal'))) {
   if (/^\d{4}-\d{2}-\d{2}\.md$/.test(f)) fs.unlinkSync(path.join(repo, 'journal', f));
 }
+// 数据文件也置空：本用例断言的是「从零新增」的行为，
+// 不能受真实仓库当前已有记录的影响
+fs.writeFileSync(path.join(repo, 'data', 'records.json'), '[]\n', 'utf-8');
 
 git(['init', '-b', 'main']);
 git(['config', 'user.name', 'Test']);
