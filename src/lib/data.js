@@ -1,10 +1,23 @@
 /* =========================================================
    data.js — 数据加载、校验、指标计算与导出序列化
-   纯逻辑模块，不依赖 DOM，便于单独测试。
+   纯逻辑模块，不依赖 DOM，可被浏览器与 Node 工具共同使用。
    ========================================================= */
 
 export const BASE_VALUE = 1000;
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Vite 在构建时注入 base；Node 工具直接 import 时退化为站点根 */
+const BASE_URL = import.meta.env?.BASE_URL || '/';
+
+/** 把站点内路径解析为带 base 的 URL；外链保持不变 */
+export function assetUrl(path) {
+  if (typeof path !== 'string') return '';
+  const value = path.trim();
+  if (!value) return '';
+  if (/^(?:https?:)?\/\//i.test(value)) return value;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
+  return `${BASE_URL}${value.replace(/^\.?\//, '')}`;
+}
 
 /* ---------------- 基础工具 ---------------- */
 
@@ -50,6 +63,34 @@ export function directionClass(value) {
   return value > 0 ? 'up' : 'down';
 }
 
+const longDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'UTC',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  weekday: 'short',
+});
+
+const monthDayFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'UTC',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function formatDateLong(value) {
+  if (!isValidDateString(value)) return value || '—';
+  return longDateFormatter.format(new Date(`${value}T00:00:00Z`));
+}
+
+export function formatMonthDay(value) {
+  if (!isValidDateString(value)) return value || '—';
+  return monthDayFormatter.format(new Date(`${value}T00:00:00Z`));
+}
+
+export function yearOf(value) {
+  return isValidDateString(value) ? value.slice(0, 4) : '';
+}
+
 export function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -65,6 +106,21 @@ export function summarize(body, max = 120) {
   if (!text) return '';
   const flat = text.replace(/\s+/g, ' ');
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
+/**
+ * 图片地址白名单。
+ * 允许站内相对路径与 https/http 外链，拒绝 javascript:、data: 等可执行协议。
+ */
+export function isSafeImageSource(src) {
+  if (typeof src !== 'string') return false;
+  const value = src.trim();
+  if (!value) return false;
+  if (/^(?:javascript|vbscript|data):/i.test(value)) return false;
+  if (value.startsWith('//')) return false;
+  if (/^https?:\/\//i.test(value)) return true;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false;
+  return true;
 }
 
 /* ---------------- 校验 ---------------- */
@@ -124,6 +180,10 @@ export function validateRecord(record) {
   if (record.tags != null && !Array.isArray(record.tags)) {
     errors.push('标签必须是数组');
   }
+  if (record.cover != null && record.cover !== '') {
+    if (typeof record.cover !== 'string') errors.push('封面必须是路径文本');
+    else if (!isSafeImageSource(record.cover)) errors.push('封面路径不合法');
+  }
   errors.push(...validateOHLC(record.ohlc));
   return errors;
 }
@@ -142,6 +202,7 @@ export function normalizeRecord(raw) {
     mood: typeof raw?.mood === 'string' ? raw.mood : '',
     energy: raw?.energy == null || raw.energy === '' ? null : Number(raw.energy),
     tags: Array.isArray(raw?.tags) ? raw.tags.filter((t) => typeof t === 'string') : [],
+    cover: typeof raw?.cover === 'string' ? raw.cover.trim() : '',
     ohlc: {
       open: toNum(ohlc.open),
       high: toNum(ohlc.high),
@@ -264,23 +325,44 @@ export function pendingDates(pending = {}) {
   return Object.keys(pending).sort();
 }
 
+/** 按年份归档，返回 [{ year, count, records }]，年份新到旧 */
+export function groupByYear(records) {
+  const map = new Map();
+  for (const record of records) {
+    const year = yearOf(record.date);
+    if (!map.has(year)) map.set(year, []);
+    map.get(year).push(record);
+  }
+  return [...map.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([year, list]) => ({
+      year,
+      count: list.length,
+      records: [...list].sort((a, b) => (a.date < b.date ? 1 : -1)),
+    }));
+}
+
 /* ---------------- 序列化与导出 ---------------- */
 
 export function toExportRecords(records) {
-  return records.map((record) => ({
-    date: record.date,
-    title: record.title,
-    body: record.body,
-    mood: record.mood ?? '',
-    energy: record.energy ?? null,
-    tags: Array.isArray(record.tags) ? record.tags : [],
-    ohlc: {
+  return records.map((record) => {
+    const out = {
+      date: record.date,
+      title: record.title,
+      body: record.body,
+      mood: record.mood ?? '',
+      energy: record.energy ?? null,
+      tags: Array.isArray(record.tags) ? record.tags : [],
+    };
+    if (record.cover) out.cover = record.cover;
+    out.ohlc = {
       open: record.ohlc.open,
       high: record.ohlc.high,
       low: record.ohlc.low,
       close: record.ohlc.close,
-    },
-  }));
+    };
+    return out;
+  });
 }
 
 /** CSV 单元格转义：逗号、引号、换行都要正确处理 */
@@ -349,7 +431,7 @@ export function parseRecordsJSON(text) {
 /* ---------------- 加载 ---------------- */
 
 async function fetchJSON(path) {
-  const response = await fetch(path, { cache: 'no-cache' });
+  const response = await fetch(assetUrl(path), { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(`${path} 加载失败（HTTP ${response.status}）`);
   }
@@ -357,7 +439,7 @@ async function fetchJSON(path) {
 }
 
 export async function loadIndex() {
-  const meta = await fetchJSON('./data/index.json');
+  const meta = await fetchJSON('data/index.json');
   return {
     name: meta.name ?? 'Yumesumi Index',
     name_zh: meta.name_zh ?? '梦澄指数',
@@ -377,7 +459,7 @@ export async function loadIndex() {
  * 加载正式记录。非法记录不会让整页崩溃：单独收集并回报。
  */
 export async function loadRecords() {
-  const raw = await fetchJSON('./data/records.json');
+  const raw = await fetchJSON('data/records.json');
   if (!Array.isArray(raw)) {
     throw new Error('data/records.json 根节点必须是数组');
   }

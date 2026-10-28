@@ -3,7 +3,7 @@ import {
   validateRecord, normalizeRecord, computeMetrics, computeSummary,
   mergeRecords, toCSV, toExportRecords, parseRecordsJSON,
   isValidDateString, daysBetween, formatNumber, formatPct, formatSigned,
-} from '../assets/js/data.js';
+} from '../src/lib/data.js';
 
 let pass = 0;
 let fail = 0;

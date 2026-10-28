@@ -7,186 +7,127 @@
 
 它不是一个真实的金融市场。点位只代表记录本身。
 
+- 线上站点：<https://index.yumesumi.cyou/>
+- 品牌主站：<https://yumesumi.cyou/>
+- 本仓库：<https://github.com/Yumesumi/Yumesumi-Index>
+
 ---
 
 ## 快速开始
 
-### 本地预览
-
-因为使用了 ES Modules 和 `fetch` 读取 JSON，**不能直接双击打开 `index.html`**（浏览器会因安全策略拦截）。需要一个静态服务器：
-
 ```bash
-# 方式一：Node（无需安装任何依赖）
-node tools/serve.mjs 8099
-# 打开 http://127.0.0.1:8099/
-
-# 方式二：Python
-python -m http.server 8099
-
-# 方式三：npx
-npx serve .
+npm ci            # 安装构建期依赖（Vite、playwright-core）
+npm run dev       # 本地开发服务器 http://127.0.0.1:8099/
+npm run build     # 构建 dist/，并自动检查源数据与产物
+npm run preview   # 在 8099 端口预览 dist/
 ```
 
-### 部署到 GitHub Pages
+站点使用 ES Modules 与 `fetch` 读取 JSON，**不能直接双击打开 `index.html`**。请使用 `npm run dev` 或 `npm run preview`。
 
-1. 把仓库推到 GitHub（默认分支 `main`）。
-2. 仓库 **Settings → Pages**：
-   - Source 选择 **Deploy from a branch**
-   - Branch 选择 **main**，目录选择 **/ (root)**
-3. 保存，等待构建完成，访问 `https://<用户名>.github.io/<仓库名>/`。
-
-站点使用全部相对路径（`./assets/...`、`./data/...`），部署在子路径下也能正常加载。仓库已包含 `.nojekyll`，跳过 Jekyll 处理。
+运行时没有任何第三方依赖：HTML、CSS、原生 SVG、ES Modules。Vite 只负责打包、压缩与资源路径处理。
 
 ---
 
-## 核心概念：网页保存 ≠ Git 提交
-
-这是本项目最容易混淆的一点，界面里也专门写明了。
-
-| 行为 | 在哪儿发生 | 影响 |
-|---|---|---|
-| **保存记录**（网页按钮） | 浏览器 | 只写入 `localStorage` 暂存区（键 `ysi.pending.v1`）。刷新后仍在，但**仓库和线上站点毫无变化**。 |
-| **git commit & push**（命令行） | 本地终端 | 真正把 JSON 写进 GitHub 仓库，Pages 随后重新构建并发布。 |
-
-换句话说：**网页里的「提交记录」是写日记，Git commit 才是发布日记。**
-
-本站不实现 GitHub API 写入、OAuth 或 Personal Access Token，也不会谎称已经改动了仓库。
-
-### 日常记录流程
-
-推荐用 **`journal/` 目录 + 脚本**（见下文「写日记与发布」），一步到位：
-
-```bash
-node tools/journal.mjs new      # 新建今天的日记模板
-# 编辑 journal/YYYY-MM-DD.md
-node tools/journal.mjs commit   # 合并 + commit + push
-```
-
-也可以在网页里写，然后手动搬运：
-
-```
-填写日记和指数数据 → 网页预览 → 导出 JSON → 写入仓库 → 验证数据 → git commit & push
-```
-
-1. 在「日记」页点「新建记录」，填写日期、标题、正文、心境、能量、标签与 OHLC。
-2. 点「保存到浏览器暂存区」。记录进入本机暂存区，顶部会出现提示条。
-3. 点顶部「导出 JSON」，得到 `records.json`（格式与仓库文件完全一致，导出前会先确认清单）。
-4. 用导出的文件替换仓库里的 `data/records.json`。
-5. 检查 JSON 内容与日期无误后，执行：
-
-   ```bash
-   git add data/records.json
-   git commit -m "记录 2026-10-27"
-   git push
-   ```
-
-6. GitHub Pages 自动重新构建，站点更新。
-
----
-
-## 写日记与发布
-
-`journal/` 目录是**写日记的地方**。每篇日记是一个以日期命名的 Markdown 文件，脚本负责把它合并进 `data/records.json` 并发布。
-
-```bash
-node tools/journal.mjs new      # 新建模板（journal/YYYY-MM-DD.md）
-node tools/journal.mjs check    # 校验，不改任何文件
-node tools/journal.mjs sync     # 只合并，不提交
-node tools/journal.mjs commit   # 合并 + git commit + push
-```
-
-写完日记后也可以直接说「**提交今天的日记**」，由 `ysi-journal-commit` skill 代劳。
-
-### 文件格式
-
-```markdown
----
-title: 不急着给今天下结论
-mood: 平静 · 认真
-energy: 7
-tags: 生活, 自我观察
-open: 1074.06
-high: 1088.20
-low: 1072.50
-close: 1086.42
----
-
-正文在这里。
-```
-
-`title` 与 `close` 必填，正文必填。`open` 留空则取上一条记录的收盘价，`high` 留空取 `max(open, close)`，`low` 留空取 `min(open, close)`。
-
-完整说明见 [`journal/README.md`](journal/README.md)。
-
-### 历史序列的生成
-
-`journal/` 里现有的历史序列由 `tools/gen-history.mjs` 按既定的走势描述生成：
-
-```bash
-node tools/gen-history.mjs --stats   # 只看统计，不写文件
-node tools/gen-history.mjs --dump    # 打印全部日期与收盘价
-node tools/gen-history.mjs           # 重新生成，覆盖 journal/ 下的日记
-```
-
-- 控制点（`ANCHORS`）定义宏观走势，区间内线性插值。
-- 波动由带种子的伪随机噪声叠加，噪声在每个区间两端收敛到 0，
-  这样极值必然落在控制点上——2021-02-24 的 36741 就是历史最高点。
-- 固定随机种子，重复运行结果完全一致。
-- 暴跌日与峰值日逐日生成，用来呈现跳空过程。
-
-生成器只写 `journal/`，`data/records.json` 仍由 `tools/journal.mjs sync` 产出。
-
-### 两个文件的关系
-
-| | 角色 | 谁写 |
-|---|---|---|
-| `journal/*.md` | 写作源文件 | 你手动编辑 |
-| `data/records.json` | 站点数据源 | 由脚本从 journal/ 合并生成 |
-
-网站只读 `data/records.json`。`journal/` 让写作保持轻便，脚本保证两者同步：
-
-- 同日期重复提交是**更新**那条记录，不会产生重复。
-- 缺失日期**不补造**记录。
-- OHLC 关系不合法时**拒绝提交**，且不修改任何文件、不产生提交。
-- `data/records.json` 中没有对应日记文件的记录会被**原样保留**，绝不删除。
-
----
-
-## 数据说明
-
-### 文件结构
+## 架构
 
 ```text
 /
-├── index.html              # 单页应用，四个视图由 hash 路由切换
-├── assets/
-│   ├── css/style.css       # 主题变量与全部样式
-│   └── js/
-│       ├── app.js          # 界面渲染、路由、表单、导入导出
-│       ├── data.js         # 数据加载、校验、指标计算、序列化
-│       └── chart.js        # 原生 SVG 日 K 线绘制
+├── index.html                  # 静态外壳：环境层、侧栏、顶栏、移动端菜单
+├── src/
+│   ├── main.js                 # 入口：样式 + app
+│   ├── app.js                  # 状态、hash 路由、模态框、编辑与导入导出
+│   ├── lib/
+│   │   ├── data.js             # 数据加载、校验、指标计算、CSV/JSON 序列化
+│   │   ├── chart.js            # 原生 SVG K 线（固定 Y 轴、横向滚动、MA7）
+│   │   ├── richtext.js         # 日记正文的安全 Markdown 子集
+│   │   ├── selectors.js        # 范围筛选、搜索、年份归档
+│   │   └── ambience.js         # 星场、显现动效、滚动状态、玻璃倾斜
+│   ├── components/
+│   │   ├── layout.js           # 导航、标题、状态、暂存提示
+│   │   ├── ui.js               # 模态框、Toast、下载、空状态
+│   │   ├── entry-card.js       # 日记卡片与行情条
+│   │   └── icons.js            # 内联 SVG 图标
+│   ├── views/                  # overview / journal / history / methodology
+│   └── styles/
+│       ├── tokens.css          # 设计令牌（唯一来源）
+│       ├── base.css            # reset、排版、焦点、骨架
+│       ├── layout.css          # 环境层、侧栏、顶栏、移动端
+│       ├── components.css      # 玻璃、按钮、表单、图表、表格
+│       ├── views.css           # 四个视图的版式
+│       └── motion.css          # 关键帧与减少动效
+├── public/
+│   ├── brand/logo.svg          # 与梦澄中心一致的品牌标记
+│   ├── fonts/                  # MiSans 分片（woff2 + unicode-range）
+│   └── images/journal/         # 日记封面与插图
 ├── data/
-│   ├── index.json          # 指数元信息（基准、基准日期、频率）
-│   └── records.json        # 正式记录（站点唯一数据源）
-├── journal/                # 日记源文件（你手动编辑）
-│   ├── TEMPLATE.md         # 模板
-│   ├── README.md           # 格式说明
-│   └── YYYY-MM-DD.md       # 一篇日记
-├── samples/
-│   └── records.sample.json # 演示数据，明确标记，非真实记录
-├── tools/                  # 本地预览与验证脚本（不影响站点运行）
-│   ├── serve.mjs           # 本地静态服务器
-│   ├── journal.mjs         # 日记合并与发布
-│   ├── gen-history.mjs     # 按走势描述生成历史周记序列
-│   ├── verify.mjs          # 数据层单元校验
-│   ├── e2e.mjs             # 页面端到端校验
-│   ├── acceptance.mjs      # 验收测试
-│   ├── journal-verify.mjs  # 日记流程单元校验
-│   ├── journal-e2e.mjs     # 日记流程端到端校验
-│   └── v2ray.mjs           # V2rayN 控制与代理故障转移
-├── README.md
-└── .nojekyll
+│   ├── index.json              # 指数元信息
+│   └── records.json            # 正式记录（站点唯一数据源）
+├── journal/                    # 日记源文件（人写）
+├── tools/                      # 本地工具与校验脚本
+├── CNAME                       # index.yumesumi.cyou
+├── vite.config.js
+├── package.json / package-lock.json
+└── .github/workflows/deploy.yml
 ```
+
+### 设计体系
+
+与梦澄中心共用一套视觉语言：
+
+- 近黑紫背景、低饱和薰衣草紫重点色、细描边、克制的环境光。
+- MiSans 字体，按 unicode-range 分片加载；拉丁分片预加载。
+- 玻璃材质分三级：主要面板（`glass`）、次级卡片（`glass-soft`）、数据面板（`panel-data`，提高不透明度保证图表可读性）。
+- 动效只使用 `transform` / `opacity`；支持 `prefers-reduced-motion`；移动端关闭次级卡片的 `backdrop-filter`，减少合成开销。
+- 所有颜色、字体、间距、圆角、阴影、动效参数集中在 `src/styles/tokens.css`。
+
+K 线图使用原生 SVG，无图表库：
+
+- 蜡烛按记录序号等距排列，不按日历缩放，缺失日期不补造。
+- Y 轴固定在左侧，不随横向滚动移动。
+- 纵轴跟随当前时间范围自适应；基准线落在范围外时，用边缘提示标注「在区间上方/下方」。
+- 大范围数据横向滚动，默认定位到最新一根；移动端每根蜡烛至少 10px。
+- MA7 仅基于真实记录计算。
+
+---
+
+## 部署（GitHub Actions）
+
+`main` 分支的推送会触发 `.github/workflows/deploy.yml`：
+
+1. 检出代码，按 `.nvmrc` 安装 Node 22，使用 npm 缓存。
+2. `npm ci` 安装锁定依赖。
+3. `npm run check`：数据校验、日记同步校验、正文渲染校验、源数据检查。
+4. `npm run build`：Vite 构建 `dist/`，`postbuild` 再次检查产物完整性。
+5. 上传 `dist/` 为 Pages artifact。
+6. 部署到 GitHub Pages。
+
+构建或任一步校验失败时，不会上传 artifact，也不会发布新版本。并发组为 `pages`，生产发布不会被后续推送打断。
+
+### 仓库设置
+
+GitHub 仓库 **Settings → Pages** 中：
+
+- **Source** 选择 **GitHub Actions**。
+- Custom domain 保持 `index.yumesumi.cyou`。
+- 域名 DNS / Cloudflare 配置保持不变。
+
+仓库根目录的 `CNAME` 会被 Vite 复制进 `dist/`，确保发布产物仍带自定义域名。`https_enforced` 与证书由 GitHub Pages 管理，不要通过构建脚本覆盖。
+
+### 自定义域名与子路径
+
+站点部署在自定义域名根路径，`base` 为 `/`，资源与数据都从根路径加载。
+
+如需临时部署到 `https://<user>.github.io/<repo>/`：
+
+```bash
+YSI_BASE=/Yumesumi-Index/ npm run build
+```
+
+Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import.meta.env.BASE_URL` 读取数据。`tools/acceptance.mjs` 会自动构建子路径产物并在浏览器中验证。正式发布仍建议使用自定义域名根路径。
+
+---
+
+## 数据规则
 
 ### `data/index.json`
 
@@ -202,15 +143,11 @@ node tools/gen-history.mjs           # 重新生成，覆盖 journal/ 下的日�
 }
 ```
 
-基准日期只是指数的设定信息，**不代表系统为该日期自动生成了一条正式记录**。
-
-基准点位为 `0`。这意味着「相对基准的涨跌幅」没有可比基数——除以 0 没有意义。
-此时页面显示「—」而不是 0.00%，累计涨跌额依然准确。基准线 0 始终画在图表上，
-是判断「水上还是水下」的唯一参照。
+基准点位为 `0`：累计百分比没有可比基数，页面显示「—」；累计涨跌额仍然准确。
 
 ### `data/records.json`
 
-按日期排列的 JSON 数组，**每个日期最多一条记录**：
+按日期升序的数组，每个日期最多一条记录：
 
 ```json
 [
@@ -221,93 +158,108 @@ node tools/gen-history.mjs           # 重新生成，覆盖 journal/ 下的日�
     "mood": "平静 · 认真",
     "energy": 7,
     "tags": ["生活", "自我观察"],
-    "ohlc": {
-      "open": 1074.06,
-      "high": 1088.20,
-      "low": 1072.50,
-      "close": 1086.42
-    }
+    "cover": "images/journal/2026-10-27.webp",
+    "ohlc": { "open": 1074.06, "high": 1088.20, "low": 1072.50, "close": 1086.42 }
   }
 ]
 ```
 
-格式要求：
-
-- 日期使用 `YYYY-MM-DD`。
-- 数值必须是 JSON 数字，不能写成带逗号的字符串。
-- 展示格式、涨跌额和涨跌幅一律由代码计算，不手工维护。
-- 缺失日期不创建占位记录。
-- 原始正文完整保留，摘要只是展示层的截断。
+`cover` 可选；没有封面时不写这个字段。数值必须是 JSON 数字。日期使用 `YYYY-MM-DD`。
 
 ### 指数规则
 
-基准点位 `0`。
-
-```
+```text
 日涨跌额  = 当日收盘价 − 上一条有效记录的收盘价
 日涨跌幅  = 日涨跌额 ÷ |上一条有效记录收盘价| × 100%
-累计变化  = 最新收盘价 − 0        （基准为 0，累计百分比无意义，不显示）
+累计变化  = 最新收盘价 − 0（基准为 0，累计百分比无意义，不显示）
 ```
 
-第一条记录没有前一条收盘价，统一以基准点位作为比较对象。相邻两条记录可以相隔数天——日变化的比较对象是**上一条真实记录**，中间没有记录的日期不会生成 K 线，也不会被补造成行情。
-
-**点位可以是负数。** 涨跌幅的分母取前收的绝对值，保证涨跌额与涨跌幅的符号始终一致：从 −200 涨到 −100 记作 +50%，而不会被除法翻转成负数。前收为 0 时没有可比基数，涨跌幅显示为「—」，涨跌额仍然准确。
-
-### OHLC 约束
-
-- `high >= open` 且 `high >= close`
-- `low <= open` 且 `low <= close`
-
-不满足的输入会被表单当场拒绝，不会被静默接受。新建记录时开盘价默认取上一条有效收盘价，最高/最低价默认跟随开盘收盘，都可以手动调整。
+- 第一条记录以基准点位作为比较对象。
+- 相邻记录可以相隔数天；中间没有记录的日期不会生成 K 线。
+- 点位可以是负数；涨跌幅分母取前收绝对值，保证符号与涨跌额一致。前收为 0 时涨跌幅显示「—」。
+- OHLC 必须满足 `high >= open`、`high >= close`、`low <= open`、`low <= close`，否则拒绝保存。
 
 ---
 
-## 功能
+## 写日记与发布
 
-- **概览**：当前点位、最近日涨跌、相对基准的累计变化、已记录日期数、最近心境；日 K 线图；最近 5 条日记；指数理念；发布流程说明。
-- **日记**：按日期排序，按标题、正文、标签、心境全文搜索，查看完整记录，新建与修改（同日期为更新而非重复新增）。
-- **历史**：历史 K 线与行情表（日期/开盘/最高/最低/收盘/日变化/涨跌幅），30 天 / 90 天 / 全部范围切换，导出 CSV。
-- **说明**：指数含义、基准、OHLC 规则、缺失日期规则、数据保存与发布流程、隐私提醒、免责声明。
+`journal/` 是写作源目录，每篇日记一个 `YYYY-MM-DD.md` 文件。
 
-导出：JSON（与仓库格式一致）、CSV（正确处理逗号、引号、中文、换行，带 UTF-8 BOM）。
-导入：先完整校验结构、日期与 OHLC 关系，任何一处不合法就整体拒绝，绝不覆盖现有数据。
+```bash
+node tools/journal.mjs new      # 新建模板（默认今天，可传日期）
+node tools/journal.mjs check    # 校验全部日记并对比 records.json
+node tools/journal.mjs sync     # 只合并进 data/records.json
+node tools/journal.mjs commit   # 合并 + git commit + push（带代理回退）
+```
 
+写完日记后也可以直接说「提交今天的日记」，由 `ysi-journal-commit` skill 代劳。
+
+### 文件格式
+
+```markdown
+---
+title: 不急着给今天下结论
+mood: 平静 · 认真
+energy: 7
+tags: 生活, 自我观察
+cover: images/journal/2026-10-27.webp
+open: 1074.06
+high: 1088.20
+low: 1072.50
+close: 1086.42
 ---
 
-## 技术约束
+正文支持一个收窄的 Markdown 子集。
 
-刻意保持为零依赖：
+## 小标题
 
-- 原生 HTML5 + CSS3（CSS Variables 管理主题）+ JavaScript ES Modules
-- 原生 SVG 绘制 K 线，无图表库
-- JSON 作为数据格式
-- 无框架、无构建步骤、无 npm 依赖、无后端、无数据库
+> 引用、列表、链接、**粗体**、`行内代码` 都可以。
 
-所有资源通过相对路径加载，部署在 `https://<用户名>.github.io/<仓库名>/` 下正常工作。正式运行时只读取必要的静态数据，不依赖任何第三方在线服务。
+![傍晚的天空](images/journal/2026-10-27-sky.webp)
+```
+
+`title`、`close` 与正文必填。`open` 留空取上一条收盘价；`high` / `low` 留空取 `max(open, close)` / `min(open, close)`。日期以文件名为准。
+
+### 插图
+
+- 封面：frontmatter 的 `cover` 字段，站内路径建议写成 `images/journal/xxx.webp`。
+- 正文插图：Markdown 图片语法，独占一行会渲染为带图注的 figure。
+- 图片放在 `public/images/journal/`，构建后位于 `/images/journal/`。
+- 建议 WebP、宽度 ≤1600px、单张 ≤300KB；图片懒加载，不阻塞首屏。
+- 渲染器会转义原始 HTML，只允许站内相对路径与 https/http 图片。
+
+### 两个文件的关系
+
+| | 角色 | 谁写 |
+|---|---|---|
+| `journal/*.md` | 写作源文件 | 手动编辑 |
+| `data/records.json` | 站点数据源 | 由 `journal.mjs` 合并生成 |
+
+同日期重复提交是更新；缺失日期不补造；OHLC 不合法时整体拒绝且不写入文件；`records.json` 中没有对应日记文件的记录会原样保留。
+
+### 网页保存 ≠ Git 提交
+
+| 行为 | 发生位置 | 影响 |
+|---|---|---|
+| 保存记录（网页按钮） | 浏览器 `localStorage`（键 `ysi.pending.v1`） | 只在本机可见，仓库与线上站点不变 |
+| `git commit & push` | 本地终端 / journal 脚本 | 真正发布，Actions 构建并更新站点 |
+
+站点不实现 GitHub API 写入、OAuth 或 Token，也不会声称网页操作已经改动仓库。
 
 ---
 
 ## 验证
 
 ```bash
-node tools/verify.mjs         # 数据层：72 项单元校验
-node tools/e2e.mjs            # 端到端：63 项页面校验（需 playwright-core）
-node tools/journal-verify.mjs # 日记流程：47 项单元校验
-node tools/journal-e2e.mjs    # 日记流程：46 项端到端（含本地 bare 远端 push）
-node tools/acceptance.mjs     # 验收：23 项（需 playwright-core）
+npm run check          # 数据层 72 项 + 日记流程 48 项 + 正文渲染 21 项 + 源数据检查
+npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
+npm run check:e2e      # 68 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
+npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
 ```
 
-`tools/e2e.mjs` 与 `tools/acceptance.mjs` 需要 `playwright-core`。若未安装在当前目录，用环境变量指定：
+`e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。
 
-```bash
-# Windows
-set PW_PATH=C:/path/to/playwright-core/index.mjs
-node tools/e2e.mjs
-```
-
-脚本默认访问 `http://127.0.0.1:8099`，可用 `YSI_BASE` 覆盖；需先运行 `node tools/serve.mjs 8099`。
-
-`tools/journal-e2e.mjs` 在临时沙箱中自建 bare 仓库跑完整 push 流程，不会触碰真实仓库或 GitHub。
+`tools/journal-e2e.mjs` 在临时沙箱中自建 bare 远端，完整跑 `new → check → sync → commit → push`，不会触碰真实仓库或 GitHub。
 
 ---
 
@@ -323,14 +275,14 @@ node tools/v2ray.mjs ensure              # 确保可用，不通则自动换节�
 node tools/v2ray.mjs with-proxy <命令...> # 在代理可用时执行命令
 ```
 
-设计上的两个取舍：
+设计取舍：
 
-- **不直接写注册表。** 系统代理由 V2rayN 自己在启动时设置——这是它的官方行为（每次启动/重启时强制应用）。脚本改配置后重启它即可，无需触碰注册表。
-- **切节点必须重启 V2rayN。** 核心配置（路由规则、出站参数）由 V2rayN 生成，直接改 `config.json` 会丢配置。
+- **不直接写注册表。** 系统代理由 V2rayN 自己在启动时设置；脚本改配置后重启它即可。
+- **切节点必须重启 V2rayN。** 核心配置由 V2rayN 生成，直接改 `config.json` 会丢配置。
 
-`tools/journal.mjs` 的 push 已接入该工具：直连失败 → 环境代理 → SOCKS5 → 自动切换 V2rayN 节点重试。
+`tools/journal.mjs` 的 push 已接入该工具：直连失败 → 环境代理 → SOCKS5 → 自动切换 V2rayN 节点重试。git 代理只设置 `http.proxy`，不同时设置 `https.proxy`。
 
-> 由脚本启动的 V2rayN 会随命令结束被回收。需要代理长期常驻，请手动启动 V2rayN；`with-proxy` 已覆盖「一次命令内完成网络操作」的场景。
+> 由脚本启动的 V2rayN 会随命令结束被回收。需要代理长期常驻，请手动启动 V2rayN。
 
 ---
 
@@ -344,4 +296,4 @@ GitHub Pages 上的站点是公开的，仓库里的 `data/records.json` 同样�
 
 ## 免责声明
 
-YSI 不是金融资产，不构成任何投资建议。上涨与下跌的颜色只是记账符号，不表示人生价值的高低。
+YSI 不是金融资产，不构成任何投资建议。上涨与下跌的颜色只是记账符号，不表示人生价值的高低，也不用于比较任何真实市场的涨跌。

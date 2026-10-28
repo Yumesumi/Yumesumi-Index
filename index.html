@@ -1,76 +1,205 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>梦澄指数 YSI · Yumesumi Index</title>
-<meta name="description" content="Yumesumi Index (YSI) — 用指数表达日记，用记录留住时间。">
-<link rel="stylesheet" href="./assets/css/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>梦澄指数 YSI · Yumesumi Index</title>
+  <meta name="description" content="梦澄指数（Yumesumi Index, YSI）— 用指数表达日记，用记录留住时间。一个以记录为内核的模拟指数站点。">
+  <link rel="canonical" href="https://index.yumesumi.cyou/">
+  <meta name="theme-color" content="#05050c">
+  <meta name="color-scheme" content="dark">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="梦澄指数 · Yumesumi Index">
+  <meta property="og:title" content="梦澄指数 YSI · Yumesumi Index">
+  <meta property="og:description" content="A Journal, Expressed as an Index. 用指数表达日记，用记录留住时间。">
+  <meta property="og:url" content="https://index.yumesumi.cyou/">
+  <meta property="og:image" content="https://index.yumesumi.cyou/brand/logo.svg">
+  <meta name="twitter:card" content="summary">
+
+  <link rel="icon" href="/brand/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/brand/logo.svg">
+  <link rel="preload" href="/fonts/misans-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+  <link rel="stylesheet" href="/fonts/fonts.css">
 </head>
 <body>
-<div class="app">
+  <a class="skip-link" href="#view">跳到主要内容</a>
 
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-mark">YSI</div>
-      <div class="brand-text">
-        <strong>梦澄指数</strong>
-        <span>Yumesumi Index</span>
-      </div>
-    </div>
-
-    <nav class="nav" aria-label="主导航">
-      <a href="#/overview" data-nav="overview">
-        <span class="nav-label">概览</span><span class="nav-sub">Overview</span>
-      </a>
-      <a href="#/journal" data-nav="journal">
-        <span class="nav-label">日记</span><span class="nav-sub">Journal</span>
-      </a>
-      <a href="#/history" data-nav="history">
-        <span class="nav-label">历史</span><span class="nav-sub">History</span>
-      </a>
-      <a href="#/methodology" data-nav="methodology">
-        <span class="nav-label">说明</span><span class="nav-sub">Methodology</span>
-      </a>
-    </nav>
-
-    <div class="sidebar-foot">
-      <div class="status-line" id="side-status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span id="side-status-text">正在读取数据…</span>
-      </div>
-      <p class="side-note">A Journal, Expressed as an Index.</p>
-    </div>
-  </aside>
-
-  <div class="main-wrap">
-    <header class="topbar">
-      <div class="topbar-head">
-        <h1 id="page-title">概览</h1>
-        <p id="page-sub">指数总览</p>
-      </div>
-      <div class="topbar-actions">
-        <button type="button" class="btn" data-action="export-json">导出 JSON</button>
-        <button type="button" class="btn" data-action="export-csv">导出 CSV</button>
-        <button type="button" class="btn btn-primary" data-action="new">新建记录</button>
-      </div>
-    </header>
-
-    <div id="pending-bar" class="pending-bar" hidden></div>
-
-    <main id="view" class="view" tabindex="-1"></main>
-
-    <footer class="footer">
-      <p>Yumesumi Index · 梦澄指数 — 一个人的时间序列，不是金融市场。</p>
-      <p class="footer-note">本站为静态站点，网页上的“保存记录”只写入浏览器本地暂存，不会修改 GitHub 仓库。正式发布流程见<a href="#/methodology">指数说明</a>。</p>
-    </footer>
+  <div class="ambience" aria-hidden="true">
+    <div class="amb-aurora amb-aurora--a"></div>
+    <div class="amb-aurora amb-aurora--b"></div>
+    <div class="amb-aurora amb-aurora--c"></div>
+    <div class="amb-grid"></div>
+    <div class="amb-stars" id="ambience-stars"></div>
+    <div class="amb-vignette"></div>
+    <div class="amb-grain"></div>
   </div>
 
-</div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#/overview" aria-label="梦澄指数首页">
+        <img class="brand-mark" src="/brand/logo.svg" width="34" height="34" alt="">
+        <span class="brand-copy">
+          <strong>梦澄指数</strong>
+          <span>YUMESUMI INDEX</span>
+        </span>
+      </a>
 
-<div id="modal-root"></div>
-<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+      <nav class="side-nav" aria-label="主导航">
+        <a class="nav-link" href="#/overview" data-nav="overview">
+          <span class="nav-index">01</span>
+          <span class="nav-copy"><b>概览</b><small>OVERVIEW</small></span>
+          <span class="nav-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+          </span>
+        </a>
+        <a class="nav-link" href="#/journal" data-nav="journal">
+          <span class="nav-index">02</span>
+          <span class="nav-copy"><b>日记</b><small>JOURNAL</small></span>
+          <span class="nav-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+          </span>
+        </a>
+        <a class="nav-link" href="#/history" data-nav="history">
+          <span class="nav-index">03</span>
+          <span class="nav-copy"><b>历史</b><small>HISTORY</small></span>
+          <span class="nav-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+          </span>
+        </a>
+        <a class="nav-link" href="#/methodology" data-nav="methodology">
+          <span class="nav-index">04</span>
+          <span class="nav-copy"><b>说明</b><small>METHODOLOGY</small></span>
+          <span class="nav-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+          </span>
+        </a>
+      </nav>
 
-<script type="module" src="./assets/js/app.js"></script>
+      <div class="sidebar-card glass-soft">
+        <div class="status-line">
+          <span class="status-dot" id="side-status-dot"></span>
+          <span id="side-status-text">正在读取数据…</span>
+        </div>
+        <p class="status-date" id="side-status-date">—</p>
+        <a class="btn btn-sm sidebar-return" href="https://yumesumi.cyou/" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+          <span>返回梦澄中心</span>
+        </a>
+      </div>
+
+      <div class="sidebar-foot">
+        <p class="eyebrow">A JOURNAL, EXPRESSED AS AN INDEX.</p>
+        <p>YSI 不是金融资产。点位只代表记录本身，不构成任何投资建议。</p>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <header class="topbar" id="topbar">
+        <button class="menu-btn" type="button" data-action="toggle-menu" aria-controls="mobile-nav" aria-expanded="false">
+          <span class="menu-btn-lines" aria-hidden="true"><i></i><i></i></span>
+          <span class="sr-only">打开菜单</span>
+        </button>
+
+        <div class="topbar-title">
+          <p class="eyebrow" id="page-eyebrow">OVERVIEW</p>
+          <h1 id="page-title">指数概览</h1>
+          <p id="page-sub">当前点位与最近记录</p>
+        </div>
+
+        <div class="topbar-actions">
+          <a class="btn btn-ghost site-return" href="https://yumesumi.cyou/" target="_blank" rel="noopener noreferrer" aria-label="返回梦澄中心主站">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+            <span class="site-return-label">返回主站</span>
+          </a>
+          <button type="button" class="btn btn-ghost hide-mobile" data-action="export-json">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+            <span>导出 JSON</span>
+          </button>
+          <button type="button" class="btn btn-ghost hide-mobile" data-action="export-csv">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v16M15 4v16"/></svg>
+            <span>导出 CSV</span>
+          </button>
+          <button type="button" class="btn btn-primary" data-action="new">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <span>新建记录</span>
+          </button>
+        </div>
+      </header>
+
+      <div id="pending-bar" class="pending-bar" hidden></div>
+
+      <main id="view" class="view" tabindex="-1">
+        <div class="boot" aria-label="正在加载">
+          <div class="skeleton skeleton-head"></div>
+          <div class="boot-grid">
+            <div class="skeleton skeleton-hero"></div>
+            <div class="boot-stats">
+              <div class="skeleton skeleton-stat"></div>
+              <div class="skeleton skeleton-stat"></div>
+              <div class="skeleton skeleton-stat"></div>
+              <div class="skeleton skeleton-stat"></div>
+            </div>
+          </div>
+          <div class="skeleton skeleton-panel"></div>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <div class="footer-brand">
+          <img src="/brand/logo.svg" width="22" height="22" alt="">
+          <span>YUMESUMI INDEX</span>
+        </div>
+        <p class="footer-line">A Journal, Expressed as an Index. · 用指数表达日记，用记录留住时间。</p>
+        <p class="footer-links">
+          <a href="https://yumesumi.cyou/" target="_blank" rel="noopener noreferrer">梦澄中心</a>
+          <span aria-hidden="true">/</span>
+          <a href="https://github.com/Yumesumi/Yumesumi-Index" target="_blank" rel="noopener noreferrer">源码与数据</a>
+          <span aria-hidden="true">/</span>
+          <a href="#/methodology">指数说明</a>
+        </p>
+        <p class="footer-note">网页里的「保存记录」只写入浏览器暂存；发布由 journal 脚本与 GitHub Actions 完成。本站不是金融市场。</p>
+      </footer>
+    </div>
+  </div>
+
+  <div class="mobile-nav" id="mobile-nav" hidden>
+    <div class="mobile-nav-inner">
+      <div class="mobile-nav-head">
+        <a class="brand" href="#/overview" aria-label="梦澄指数首页">
+          <img class="brand-mark" src="/brand/logo.svg" width="30" height="30" alt="">
+          <span class="brand-copy"><strong>梦澄指数</strong><span>YUMESUMI INDEX</span></span>
+        </a>
+        <button type="button" class="icon-btn" data-action="close-menu" aria-label="关闭菜单">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <nav class="mobile-nav-list" aria-label="移动端导航">
+        <a class="mobile-nav-link" href="#/overview" data-nav="overview"><span>01</span><b>概览</b><small>OVERVIEW</small></a>
+        <a class="mobile-nav-link" href="#/journal" data-nav="journal"><span>02</span><b>日记</b><small>JOURNAL</small></a>
+        <a class="mobile-nav-link" href="#/history" data-nav="history"><span>03</span><b>历史</b><small>HISTORY</small></a>
+        <a class="mobile-nav-link" href="#/methodology" data-nav="methodology"><span>04</span><b>说明</b><small>METHODOLOGY</small></a>
+      </nav>
+      <div class="mobile-nav-actions">
+        <button type="button" class="btn btn-primary" data-action="new">新建记录</button>
+        <button type="button" class="btn" data-action="export-json">导出 JSON</button>
+        <button type="button" class="btn" data-action="export-csv">导出 CSV</button>
+      </div>
+      <div class="mobile-status" id="mobile-status"></div>
+      <a class="btn mobile-center-btn" href="https://yumesumi.cyou/" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+        <span>返回梦澄中心</span>
+      </a>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <noscript>
+    <div class="noscript">梦澄指数需要 JavaScript 来读取行情数据与绘制 K 线。请启用 JavaScript 后刷新页面。</div>
+  </noscript>
+
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

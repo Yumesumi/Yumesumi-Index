@@ -1,355 +1,359 @@
 /* 端到端页面验证：node tools/e2e.mjs
-   需要 playwright-core。若未安装在当前目录，可用环境变量指定：
-     set PW_PATH=C:/path/to/playwright-core/index.js  (Windows)
-   或先执行：npm i -D playwright-core                     */
-// Windows 绝对路径需转成 file:// URL 才能被 ESM 加载
-const pwPath = process.env.PW_PATH;
-const pw = await import(pwPath ? `file:///${pwPath.replace(/\\/g, '/')}` : 'playwright-core');
-const { chromium } = pw.default ?? pw;
-const BASE = process.env.YSI_BASE || 'http://127.0.0.1:8099';
-const OUT = 'C:/Users/Yumesumi/CodeProjects/Yumesumi-Index/tools/shots';
+   自动启动 dist 预览服务器，使用 playwright-core + 本机 Chrome Headless Shell。
+   可用 YSI_CHROME 指定浏览器，YSI_BASE 指定已运行的服务地址。 */
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const OUT = path.join(REPO, 'tools', 'shots');
+const PORT = 8123;
+const BASE = process.env.YSI_BASE || `http://127.0.0.1:${PORT}`;
 const CHROME = process.env.YSI_CHROME
   || 'C:/Users/Yumesumi/AppData/Local/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-win64/chrome-headless-shell.exe';
+
+fs.mkdirSync(OUT, { recursive: true });
+
+const records = JSON.parse(fs.readFileSync(path.join(REPO, 'data', 'records.json'), 'utf-8'));
+const last = records[records.length - 1];
+const years = new Set(records.map((r) => r.date.slice(0, 4)));
+
+const pw = await import('playwright-core');
+const { chromium } = pw.default ?? pw;
 
 let pass = 0;
 let fail = 0;
 function check(name, cond, extra = '') {
   if (cond) { pass += 1; console.log(`  ok   ${name}`); }
-  else { fail += 1; console.log(`  FAIL ${name} ${extra}`); }
+  else { fail += 1; console.log(`  FAIL ${name}${extra ? ` — ${extra}` : ''}`); }
 }
 
-const browser = await chromium.launch({
-  executablePath: CHROME,
-  args: ['--no-sandbox'],
-});
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+async function waitForServer(url, timeout = 10000) {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return true;
+    } catch { /* retry */ }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return false;
+}
 
-const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-
-console.log('\n[空数据状态]');
-// 用路由拦截模拟空数据，让本段断言与仓库当前是否有数据无关
-await page.route('**/data/records.json', (route) => route.fulfill({
-  status: 200,
-  contentType: 'application/json; charset=utf-8',
-  body: '[]',
-}));
-await page.goto(BASE, { waitUntil: 'networkidle' });
-await page.waitForTimeout(600);
-check('页面标题正确', (await page.title()).includes('Yumesumi Index'));
-check('无 JS 报错', errors.length === 0, errors.join(' | '));
-check('显示空状态而非假行情', (await page.locator('.empty').count()) > 0);
-const emptyStat = await page.locator('.stat-value').first().textContent();
-check('空状态指数显示为 —', emptyStat.trim() === '—', `实际="${emptyStat}"`);
-check('图表区域提示无数据', (await page.locator('#overview-chart .empty').count()) === 1);
-check('侧栏显示 0 条正式记录', (await page.locator('#side-status-text').textContent()).includes('0 条'));
-await page.screenshot({ path: `${OUT}/01-empty-overview.png`, fullPage: true });
-// 解除拦截，后续测试使用仓库真实数据
-await page.unroute('**/data/records.json');
-
-console.log('\n[写入演示数据]');
-const sample = await page.evaluate(async () => {
-  const res = await fetch('./samples/records.sample.json');
-  return res.json();
-});
-// 直接落到仓库数据文件，模拟"用户已有真实记录"的状态
-await page.evaluate(async (records) => {
-  const res = await fetch('./data/records.json');
-  const cur = await res.json();
-  const merged = [...cur, ...records];
-  // 用示例文件里的 records 数组
-}, sample.records);
-
-console.log('\n[加载演示数据后]');
-await page.goto(BASE, { waitUntil: 'networkidle' });
-await page.waitForTimeout(500);
-check('无 JS 报错（有数据时）', errors.length === 0, errors.join(' | '));
-// 侧栏条数应与仓库数据文件的实际条数一致（不写死数字）
-const repoCount = await page.evaluate(async () => {
-  const res = await fetch('./data/records.json');
-  return (await res.json()).length;
-});
-const sidebarText = await page.locator('#side-status-text').textContent();
-check('侧栏条数与仓库数据一致', sidebarText.includes(`${repoCount} 条`), `仓库=${repoCount} 侧栏="${sidebarText}"`);
-
-// 后续各段都依赖这些日期：仓库已有日期 + 本次导入的日期
-const repoDates = await page.evaluate(async () => {
-  const res = await fetch('./data/records.json');
-  return (await res.json()).map((r) => r.date);
-});
-const importedDates = [...sample.records.map((r) => r.date), '2026-12-01', '2026-12-02'];
-const uniqueDateCount = new Set([...repoDates, ...importedDates]).size;
-
-console.log('\n[通过导入功能载入演示数据]');
-await page.goto(`${BASE}/#/methodology`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(400);
-await page.click('[data-action="import-json"]');
-await page.waitForTimeout(500);
-check('弹出导入对话框', (await page.locator('.modal-head h2').textContent()).includes('导入 JSON'));
-check('导入说明强调不覆盖现有数据', (await page.locator('.modal').textContent()).includes('现有数据不会被动到'));
-await page.setInputFiles('#import-pick', {
-  name: 'records.sample.json',
-  mimeType: 'application/json',
-  buffer: Buffer.from(JSON.stringify(sample.records), 'utf-8'),
-});
-await page.waitForTimeout(800);
-check('弹出导入确认框', (await page.locator('.modal-head h2').textContent()).includes('导入确认'));
-check('导入确认说明含"暂存区"', (await page.locator('.modal').textContent()).includes('暂存区'));
-await page.click('#do-import');
-await page.waitForTimeout(600);
-check('导入后出现待发布提示条', (await page.locator('#pending-bar').isVisible()));
-const barText = await page.locator('#pending-bar').textContent();
-check('提示条明确说明未写入仓库', barText.includes('尚未写入仓库'), barText);
-check('提示条区分 git commit', barText.includes('git commit'), barText);
-
-console.log('\n[概览页数据渲染]');
-await page.goto(`${BASE}/#/overview`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(600);
-const idxVal = await page.locator('.stat-value.lg').first().textContent();
-check('当前指数渲染为数值', /\d/.test(idxVal), `实际="${idxVal}"`);
-check('K线图已绘制 SVG', (await page.locator('#overview-chart svg').count()) === 1);
-const candleCount = await page.locator('#overview-chart rect').count();
-check('绘制出 K 线实体', candleCount > 0, `rect 数量=${candleCount}`);
-check('基准参考线存在', (await page.locator('#overview-chart line[stroke="#B8A77A"]').count()) >= 1);
-check('最近日记显示条目', (await page.locator('.entry').count()) >= 3);
-await page.screenshot({ path: `${OUT}/02-overview-with-data.png`, fullPage: true });
-
-console.log('\n[负数点位：图表与指标渲染]');
-{
-  // 导入一份含负数点位的记录，验证站点能正确渲染与计算
-  const negRecords = [
-    {
-      date: '2026-12-01', title: '负数点位测试', body: '正文', mood: '测试', energy: 5, tags: [],
-      ohlc: { open: 1000, high: 1000, low: -200, close: -200 },
-    },
-    {
-      date: '2026-12-02', title: '负数区间上涨', body: '正文', mood: '测试', energy: 5, tags: [],
-      ohlc: { open: -200, high: -100, low: -250, close: -100 },
-    },
-  ];
-  await page.goto(`${BASE}/#/methodology`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(400);
-  await page.click('[data-action="import-json"]');
-  await page.waitForTimeout(500);
-  await page.setInputFiles('#import-pick', {
-    name: 'negative.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(negRecords), 'utf-8'),
+let server = null;
+if (!process.env.YSI_BASE) {
+  server = spawn(process.execPath, [path.join(REPO, 'tools', 'serve.mjs'), String(PORT), '--dist'], {
+    cwd: REPO,
+    stdio: 'ignore',
   });
-  await page.waitForTimeout(800);
-  await page.click('#do-import');
-  await page.waitForTimeout(600);
+  const ready = await waitForServer(`${BASE}/`);
+  if (!ready) {
+    console.error('预览服务器启动失败');
+    server.kill();
+    process.exit(1);
+  }
+}
 
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(800);
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
 
-  check('负数场景无 JS 报错', errors.length === 0, errors.join(' | '));
+function watch(page) {
+  const errors = [];
+  const failed = [];
+  page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
+  page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+  page.on('requestfailed', (req) => failed.push(`${req.url()} ${req.failure()?.errorText}`));
+  page.on('response', (res) => { if (res.status() >= 400) failed.push(`${res.status()} ${res.url()}`); });
+  return { errors, failed };
+}
 
-  // 最新一条收盘 -100，应显示为负数
-  const negIdx = await page.locator('.stat-value.lg').first().textContent();
-  check('首页指数显示负数', negIdx.includes('-') || negIdx.includes('−'), `实际="${negIdx.trim()}"`);
+async function goto(page, hash = '', { wait = 700 } = {}) {
+  await page.goto(`${BASE}/${hash}`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(wait);
+}
 
-  // K 线数量 = 去重后的总记录数（同日期只算一根）
-  const negCandles = await page.evaluate(() => [...document.querySelectorAll('#overview-chart rect')]
-    .filter((r) => r.getAttribute('fill') !== 'transparent').length);
-  const uniqueDates = uniqueDateCount;
-  check('负数场景 K 线数量正确', negCandles === uniqueDates, `期望=${uniqueDates} 实际=${negCandles}`);
+/** 逐段滚动触发 IntersectionObserver，再回到顶部截完整页面 */
+async function capture(page, file) {
+  await page.evaluate(async () => {
+    const html = document.documentElement;
+    const previous = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    const step = Math.max(300, Math.round(window.innerHeight * 0.7));
+    for (let y = 0; y < document.body.scrollHeight; y += step) {
+      window.scrollTo(0, y);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    }
+    window.scrollTo(0, 0);
+    html.style.scrollBehavior = previous;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  });
+  await page.screenshot({ path: path.join(OUT, file), fullPage: true });
+}
 
-  // 坐标轴刻度应包含 0（负数区间）
-  const axisTexts = await page.locator('#overview-chart text').allTextContents();
-  check('坐标轴包含 0 刻度', axisTexts.some((t) => t.trim() === '0'), axisTexts.join(','));
+try {
+  /* ================= 桌面 · 概览 ================= */
+  console.log('\n[桌面 · 概览]');
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const watchPage = watch(page);
+  await goto(page);
 
-  // Y 轴不应出现 NaN / Infinity
-  check('坐标轴无 NaN/Infinity', !axisTexts.some((t) => /NaN|Infinity/i.test(t)), axisTexts.join(','));
+  check('页面标题正确', (await page.title()).includes('梦澄指数'));
+  check('Hero 当前点位与最新收盘一致', (await page.locator('.hero-value').innerText()).includes('12,000.00'));
+  check('侧栏记录数与数据一致', (await page.locator('#side-status-text').innerText()).includes(`${records.length} 条`));
+  check('顶栏返回主站按钮可见', await page.locator('.site-return').isVisible());
+  check('返回主站地址正确', (await page.locator('.site-return').getAttribute('href')) === 'https://yumesumi.cyou/');
+  check('侧栏返回主站按钮可见', await page.locator('.sidebar-return').isVisible());
+  check('默认范围为 1 年', (await page.locator('.seg-btn[data-range="365"]').getAttribute('class')).includes('is-active'));
+  check('K 线 SVG 已绘制', (await page.locator('#overview-chart svg').count()) === 1);
+  check('K 线已渲染', (await page.locator('#overview-chart .candle-body').count()) > 0);
+  check('MA7 已绘制', (await page.locator('#overview-chart .chart-ma').count()) === 1);
+  check('Y 轴标签固定在图表左侧', (await page.locator('#overview-chart .chart-yaxis-label').count()) >= 3);
+  check('MiSans 字体已加载', await page.evaluate(async () => {
+    await document.fonts.ready;
+    return document.fonts.check('16px MiSans');
+  }));
+  check('玻璃面板使用 backdrop-filter', await page.evaluate(() => {
+    const style = getComputedStyle(document.querySelector('.hero-panel'));
+    return /blur/.test(style.backdropFilter || style.webkitBackdropFilter || '');
+  }));
+  check('桌面端无 JS 错误', watchPage.errors.length === 0, watchPage.errors.join(' | '));
+  check('桌面端无资源加载失败', watchPage.failed.length === 0, watchPage.failed.join(' | '));
+  await capture(page, 'desktop-overview.png');
 
-  // 基准线仍应可见
-  check('负数场景基准线仍存在', (await page.locator('#overview-chart line[stroke="#B8A77A"]').count()) >= 1);
-
-  // 负数区间上涨的记录，涨跌幅应为正（在日记页查看条目）
-  await page.goto(`${BASE}/#/journal`, { waitUntil: 'networkidle' });
+  console.log('\n[概览 · 范围与指标]');
+  await page.click('.seg-btn[data-range="all"]');
   await page.waitForTimeout(700);
-  const negPctCells = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#journal-list .entry')];
-    const target = rows.find((r) => r.textContent.includes('负数区间上涨'));
-    if (!target) return null;
-    const m = target.textContent.match(/([+−-][\d.,]+)\s*\(([+−-][\d.,]+)%\)/);
-    return m ? { change: m[1], pct: m[2] } : null;
-  });
-  check('负数区间上涨显示为正涨跌幅', negPctCells !== null && negPctCells.pct.startsWith('+'),
-    JSON.stringify(negPctCells));
+  check('全部范围渲染完整记录', (await page.locator('#overview-chart .candle-body').count()) === records.length);
+  check('全部范围可横向滚动', (await page.locator('#overview-chart .chart-shell.is-scrollable').count()) === 1);
+  check('图表初始定位到最新一根', await page.evaluate(() => {
+    const vp = document.querySelector('#overview-chart .chart-viewport');
+    return vp.scrollLeft + vp.clientWidth >= vp.scrollWidth - 4;
+  }));
+  await page.click('.seg-btn[data-range="90"]');
+  await page.waitForTimeout(500);
+  check('90 天档位被选中', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
+  const candles90 = await page.locator('#overview-chart .candle-body').count();
+  check('90 天范围只保留近期记录', candles90 > 0 && candles90 < 30, String(candles90));
+  await page.click('[data-action="toggle-ma"]');
+  await page.waitForTimeout(400);
+  check('关闭 MA7 后均线消失', (await page.locator('#overview-chart .chart-ma').count()) === 0);
+  await page.click('[data-action="toggle-ma"]');
+  await page.waitForTimeout(300);
 
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'networkidle' });
+  /* ================= 日记 ================= */
+  console.log('\n[桌面 · 日记]');
+  await goto(page, '#/journal');
+  check('日记首屏分批渲染', (await page.locator('.entry').count()) === 24);
+  check('搜索框铺满工具栏', await page.locator('.search-field').evaluate((el) => el.getBoundingClientRect().width > 500));
+  check('年份归档完整', (await page.locator('.chip').count()) === years.size + 1,
+    `${await page.locator('.chip').count()} / ${years.size + 1}`);
+  await page.fill('#journal-search', '水下');
+  await page.waitForTimeout(250);
+  const waterEntries = await page.locator('.entry').count();
+  check('全文搜索命中', waterEntries > 0, String(waterEntries));
+  await page.fill('#journal-search', '');
+  await page.waitForTimeout(200);
+  await page.click('.chip[data-year="2026"]');
+  await page.waitForTimeout(250);
+  const yearDates = await page.locator('.entry-date time').allTextContents();
+  check('年份筛选只显示 2026', yearDates.length > 0 && yearDates.every((d) => d.startsWith('2026')));
+  const beforeMore = await page.locator('.entry').count();
+  const moreBtn = page.locator('.load-more');
+  if (await moreBtn.count()) {
+    await moreBtn.first().click();
+    await page.waitForTimeout(300);
+  }
+  check('加载更多增加条目', (await page.locator('.entry').count()) >= beforeMore);
+  await page.click('.chip[data-year="all"]');
+  await page.waitForTimeout(250);
+  await page.locator('.entry-title button').first().click();
+  await page.waitForTimeout(350);
+  check('阅读弹窗打开', await page.locator('.modal-reading').isVisible());
+  check('阅读弹窗含正文', (await page.locator('.journal-body').innerText()).length > 10);
+  check('阅读弹窗含行情条', (await page.locator('.quote-strip b').count()) >= 4);
+  const quoteText = await page.locator('.quote-strip').innerText();
+  check('阅读弹窗行情指标已计算', quoteText.includes('日变化') && !/日变化\s*—/.test(quoteText), quoteText.replace(/\n/g, ' '));
+  await page.screenshot({ path: path.join(OUT, 'desktop-journal-modal.png') });
+  await page.locator('.modal-close').click();
+  await page.waitForTimeout(250);
+  await capture(page, 'desktop-journal.png');
+
+  /* ================= 历史 ================= */
+  console.log('\n[桌面 · 历史]');
+  await goto(page, '#/history');
+  await page.click('.seg-btn[data-range="all"]');
   await page.waitForTimeout(600);
-  await page.screenshot({ path: `${OUT}/11-negative-values.png`, fullPage: true });
+  check('历史图表已绘制', (await page.locator('#history-chart svg').count()) === 1);
+  check('行情表首屏 120 行', (await page.locator('.data-table tbody tr').count()) === 120,
+    String(await page.locator('.data-table tbody tr').count()));
+  const firstRow = await page.locator('.data-table tbody tr').first().locator('td').allTextContents();
+  check('行情表首行是最新日期', firstRow[0].includes(last.date), firstRow[0]);
+  check('行情表首行收盘正确', firstRow[4].replaceAll(',', '') === Number(last.ohlc.close).toFixed(2),
+    `${firstRow[4]} / ${last.ohlc.close}`);
+  await page.click('[data-action="load-more-history"]');
+  await page.waitForTimeout(400);
+  check('行情表加载更多', (await page.locator('.data-table tbody tr').count()) === 240);
+  await capture(page, 'desktop-history.png');
+
+  /* ================= 说明 + 导出 ================= */
+  console.log('\n[桌面 · 说明与导出]');
+  await goto(page, '#/methodology');
+  check('说明页含基准规则', (await page.locator('.method-grid').innerText()).includes('基准点位'));
+  check('说明页含发布流程', (await page.locator('.method-grid').innerText()).includes('GitHub Actions'));
+  await page.click('.topbar [data-action="export-json"]');
+  await page.waitForTimeout(300);
+  check('导出弹窗打开', await page.locator('.modal').innerText().then((t) => t.includes('导出 JSON')));
+  check('导出数量与合并记录一致', (await page.locator('.modal').innerText()).includes(`全部 ${records.length} 条记录`));
+  await page.locator('.modal-close').click();
+
+  /* ================= 新建 / 暂存 ================= */
+  console.log('\n[桌面 · 新建与浏览器暂存]');
+  await page.evaluate(() => localStorage.removeItem('ysi.pending.v1'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.click('.topbar [data-action="new"]');
+  await page.waitForTimeout(300);
+  await page.fill('#f-date', '2026-12-31');
+  await page.fill('#f-title', '端到端测试记录');
+  await page.fill('#f-body', '这是端到端测试正文。\n\n![logo](brand/logo.svg)');
+  await page.fill('#f-open', '-12000');
+  await page.fill('#f-high', '-12200');
+  await page.fill('#f-low', '-12300');
+  await page.fill('#f-close', '-12050');
+  await page.click('[form="record-form"]');
+  await page.waitForTimeout(300);
+  check('非法 OHLC 被表单拒绝', await page.locator('#form-error').isVisible());
+  await page.fill('#f-high', '-11900');
+  await page.click('[form="record-form"]');
+  await page.waitForTimeout(450);
+  check('保存后出现暂存提示条', await page.locator('#pending-bar').isVisible());
+  check('暂存提示强调未写入仓库', (await page.locator('#pending-bar').innerText()).includes('尚未写入仓库'));
+  await goto(page, '#/journal');
+  await page.fill('#journal-search', '端到端测试记录');
+  await page.waitForTimeout(300);
+  check('暂存记录出现在日记列表', (await page.locator('.entry').count()) === 1);
+  check('暂存记录带待发布标记', (await page.locator('.entry .badge-warn').count()) === 1);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  check('刷新后暂存仍存在', await page.locator('#pending-bar').isVisible());
+  await page.evaluate(() => localStorage.removeItem('ysi.pending.v1'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(400);
+
+  /* ================= 封面 / 插图 ================= */
+  console.log('\n[日记 · 封面与插图]');
+  await page.evaluate(() => {
+    localStorage.setItem('ysi.pending.v1', JSON.stringify({
+      '2026-12-30': {
+        mode: 'upsert',
+        record: {
+          date: '2026-12-30', title: '封面与插图测试', body: '正文第一段。\n\n![品牌标记](brand/logo.svg)', mood: '测试',
+          energy: 5, tags: ['测试'], cover: 'brand/logo.svg',
+          ohlc: { open: -12000, high: -11900, low: -12100, close: -12050 },
+        },
+      },
+    }));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.fill('#journal-search', '封面与插图测试');
+  await page.waitForTimeout(350);
+  check('列表渲染封面图', await page.locator('.entry-cover img').evaluate((img) => img.complete && img.naturalWidth > 0));
+  await page.locator('.entry-title button').first().click();
+  await page.waitForTimeout(400);
+  check('阅读页渲染封面', await page.locator('.detail-cover img').evaluate((img) => img.complete && img.naturalWidth > 0));
+  check('正文 Markdown 图片被渲染', await page.locator('.journal-body img').count() === 1);
+  await page.locator('.modal-close').click();
+  await page.evaluate(() => localStorage.removeItem('ysi.pending.v1'));
+
+  /* ================= 空数据 ================= */
+  console.log('\n[空数据状态]');
+  const emptyPage = await context.newPage();
+  const watchEmpty = watch(emptyPage);
+  await emptyPage.route('**/data/records.json', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json; charset=utf-8',
+    body: '[]',
+  }));
+  await goto(emptyPage);
+  check('空数据不崩溃', (await emptyPage.locator('.hero-value.is-empty').count()) === 1);
+  check('空数据图表显示空状态', (await emptyPage.locator('.chart-empty').count()) === 1);
+  check('空数据无假行情', (await emptyPage.locator('.hero-value').innerText()).trim() === '—');
+  check('空数据无 JS 错误', watchEmpty.errors.length === 0, watchEmpty.errors.join(' | '));
+  await emptyPage.close();
+
+  /* ================= 移动端 ================= */
+  console.log('\n[移动端 390×844]');
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const mobile = await mobileContext.newPage();
+  const watchMobile = watch(mobile);
+  await goto(mobile);
+  check('移动端无横向溢出', await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    await mobile.evaluate(() => `${document.documentElement.scrollWidth} / ${window.innerWidth}`));
+  check('移动端菜单按钮可见', await mobile.locator('.menu-btn').isVisible());
+  check('移动端指数概览可见', await mobile.locator('.hero-value').isVisible());
+  await capture(mobile, 'mobile-overview.png');
+  await mobile.click('.menu-btn');
+  await mobile.waitForTimeout(300);
+  check('移动端菜单打开', await mobile.locator('#mobile-nav').isVisible());
+  check('移动端菜单返回主站按钮可见', await mobile.locator('.mobile-center-btn').isVisible());
+  await mobile.click('.mobile-nav-link[data-nav="journal"]');
+  await mobile.waitForTimeout(600);
+  check('移动端菜单导航生效', (await mobile.locator('#page-title').innerText()) === '日记归档');
+  check('移动端日记无横向溢出', await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await capture(mobile, 'mobile-journal.png');
+  check('移动端无 JS 错误', watchMobile.errors.length === 0, watchMobile.errors.join(' | '));
+
+  /* ================= 平板 ================= */
+  console.log('\n[平板 834×1112]');
+  const tabletContext = await browser.newContext({ viewport: { width: 834, height: 1112 }, deviceScaleFactor: 1 });
+  const tablet = await tabletContext.newPage();
+  const watchTablet = watch(tablet);
+  await goto(tablet);
+  check('平板无横向溢出', await tablet.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    await tablet.evaluate(() => `${document.documentElement.scrollWidth} / ${window.innerWidth}`));
+  check('平板使用移动端导航', await tablet.locator('.menu-btn').isVisible());
+  check('平板 K 线正常绘制', (await tablet.locator('#overview-chart svg').count()) === 1);
+  check('平板四张指标卡可见', (await tablet.locator('.stat').count()) === 4);
+  check('平板无 JS 错误', watchTablet.errors.length === 0, watchTablet.errors.join(' | '));
+  await capture(tablet, 'tablet-overview.png');
+
+  /* ================= 减少动效 ================= */
+  console.log('\n[prefers-reduced-motion]');
+  const reduceContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+  const reducePage = await reduceContext.newPage();
+  const watchReduce = watch(reducePage);
+  await goto(reducePage);
+  check('减少动效时内容直接可见', await reducePage.locator('.view-head').evaluate((el) => getComputedStyle(el).opacity === '1'));
+  check('减少动效时星点静止', await reducePage.locator('.amb-star').first().evaluate((el) => getComputedStyle(el).animationName === 'none'));
+  check('减少动效无 JS 错误', watchReduce.errors.length === 0, watchReduce.errors.join(' | '));
+
+  /* ================= 站内资源 ================= */
+  console.log('\n[资源与路由]');
+  await goto(page, '#/history');
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  check('直接刷新哈希路由正常', (await page.locator('#history-chart svg').count()) === 1);
+  const fontRes = await page.request.get(`${BASE}/fonts/fonts.css`);
+  check('字体样式可访问', fontRes.ok());
+  const dataRes = await page.request.get(`${BASE}/data/records.json`);
+  check('数据文件可访问', dataRes.ok());
+  const cnameRes = await page.request.get(`${BASE}/CNAME`);
+  check('产物包含 CNAME', cnameRes.ok());
+
+  await context.close();
+  await mobileContext.close();
+  await tabletContext.close();
+  await reduceContext.close();
+} finally {
+  await browser.close();
+  if (server) server.kill();
 }
 
-console.log('\n[历史页与表格]');
-await page.goto(`${BASE}/#/history`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(600);
-const rows = await page.locator('table.data tbody tr').count();
-// 表格行数 = 仓库条数 + 导入的 5 条演示 + 2 条负数，但同日期是「更新」而非新增
-const expectedRows = uniqueDateCount;
-check('行情表行数与数据总量一致', rows === expectedRows, `期望=${expectedRows} 实际=${rows}`);
-const headers = await page.locator('table.data thead th').allTextContents();
-check('表头包含日期/开盘/最高/最低/收盘/日变化',
-  ['日期', '开盘', '最高', '最低', '收盘', '日变化'].every((h) => headers.includes(h)),
-  headers.join('|'));
-check('历史页也有 K 线', (await page.locator('#history-chart svg').count()) === 1);
-await page.screenshot({ path: `${OUT}/03-history.png`, fullPage: true });
-
-console.log('\n[日记页搜索]');
-await page.goto(`${BASE}/#/journal`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(500);
-const allEntries = await page.locator('.entry').count();
-await page.fill('#journal-search', '回落');
-await page.waitForTimeout(400);
-const filtered = await page.locator('.entry').count();
-check('搜索后条目数减少', filtered < allEntries && filtered > 0, `全部=${allEntries} 过滤后=${filtered}`);
-check('搜索输入框保持焦点', await page.evaluate(() => document.activeElement?.id === 'journal-search'));
-await page.fill('#journal-search', '不存在的关键词xyz');
-await page.waitForTimeout(400);
-check('无结果时显示空状态', (await page.locator('#journal-list .empty').count()) === 1);
-await page.fill('#journal-search', '');
-await page.waitForTimeout(400);
-check('清空搜索后恢复', (await page.locator('.entry').count()) === allEntries);
-await page.screenshot({ path: `${OUT}/04-journal.png`, fullPage: true });
-
-console.log('\n[表单校验]');
-await page.click('[data-action="new"]');
-await page.waitForTimeout(500);
-check('弹出编辑框', (await page.locator('#record-form').count()) === 1);
-const btnText = await page.locator('#record-form button[type=submit]').textContent();
-check('提交按钮不叫"提交到Git"', !btnText.includes('Git'), `实际="${btnText}"`);
-check('提交按钮明确为浏览器暂存区', btnText.includes('浏览器暂存区'), `实际="${btnText}"`);
-const modalText = await page.locator('.modal').textContent();
-check('表单内说明不会写入仓库', modalText.includes('不会') && modalText.includes('GitHub'));
-// 构造非法 OHLC：最高价低于收盘价
-await page.fill('#f-date', '2026-11-01');
-await page.fill('#f-title', '测试记录');
-await page.fill('#f-body', '这是正文');
-await page.fill('#f-open', '1000');
-await page.fill('#f-high', '1010');
-await page.fill('#f-low', '990');
-await page.fill('#f-close', '1020');
-await page.dispatchEvent('#f-close', 'input');
-await page.waitForTimeout(300);
-await page.click('#record-form button[type=submit]');
-await page.waitForTimeout(400);
-check('非法 OHLC 被拒绝', (await page.locator('#form-error').isVisible()));
-const errText = await page.locator('#form-error').textContent();
-check('错误提示提到最高价', errText.includes('最高价'), errText);
-check('错误提示提到收盘价', errText.includes('收盘价'), errText);
-await page.screenshot({ path: `${OUT}/05-form-validation.png` });
-
-console.log('\n[合法保存]');
-await page.fill('#f-high', '1030');
-await page.dispatchEvent('#f-high', 'input');
-await page.waitForTimeout(200);
-await page.click('#record-form button[type=submit]');
-await page.waitForTimeout(600);
-check('保存后弹窗关闭', (await page.locator('#record-form').count()) === 0);
-check('出现 toast 提示', (await page.locator('#toast').isVisible()));
-const toastText = await page.locator('#toast').textContent();
-check('toast 明确未写入仓库', toastText.includes('未写入仓库'), toastText);
-
-console.log('\n[同日期更新而非重复]');
-await page.goto(`${BASE}/#/journal`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(500);
-const beforeCount = await page.locator('.entry').count();
-await page.click('[data-action="new"]');
-await page.waitForTimeout(400);
-await page.fill('#f-date', '2026-11-01');
-await page.dispatchEvent('#f-date', 'change');
-await page.waitForTimeout(300);
-const hint = await page.locator('#date-hint').textContent();
-check('提示该日期已有记录将更新', hint.includes('已有记录'), hint);
-await page.fill('#f-title', '测试记录（改）');
-await page.fill('#f-body', '这是正文');
-await page.fill('#f-open', '1000');
-await page.fill('#f-high', '1030');
-await page.fill('#f-low', '990');
-await page.fill('#f-close', '1020');
-await page.dispatchEvent('#f-close', 'input');
-await page.waitForTimeout(200);
-await page.click('#record-form button[type=submit]');
-await page.waitForTimeout(600);
-await page.goto(`${BASE}/#/journal`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(500);
-const afterCount = await page.locator('.entry').count();
-check('同日期更新后条目数不变', afterCount === beforeCount, `之前=${beforeCount} 之后=${afterCount}`);
-// 按日期定位目标条目，不依赖排序位置
-const updatedTitle = await page.evaluate(() => {
-  const entry = [...document.querySelectorAll('.entry')]
-    .find((e) => e.querySelector('.entry-date')?.textContent.includes('2026-11-01'));
-  return entry?.querySelector('.entry-title')?.textContent || '';
-});
-check('标题已更新', updatedTitle.includes('改'), `实际="${updatedTitle}"`);
-
-console.log('\n[导出对话框]');
-await page.click('[data-action="export-json"]');
-await page.waitForTimeout(500);
-check('导出对话框打开', (await page.locator('.modal-head h2').textContent()).includes('导出 JSON'));
-const exportText = await page.locator('.modal').textContent();
-check('导出说明含 git commit', exportText.includes('git commit'));
-check('导出说明强调网页不会提交', exportText.includes('网页不会替你提交'));
-await page.click('#do-export-json');
-await page.waitForTimeout(500);
-const dl = await page.evaluate(() => document.querySelector('#toast')?.textContent || '');
-check('导出后提示下一步 git 操作', dl.includes('git commit'), dl);
-
-console.log('\n[CSV 导出]');
-const csv = await page.evaluate(async () => {
-  // 直接调用模块逻辑验证 CSV 内容
-  const mod = await import('./assets/js/data.js');
-  return mod.toCSV([
-    { date: '2026-10-20', title: '含"引号",逗号', body: 'b', mood: '平静', energy: 6, tags: ['x'],
-      ohlc: { open: 1000, high: 1010, low: 990, close: 1005 } },
-  ], 1000);
-});
-check('CSV 含 BOM', csv.charCodeAt(0) === 0xFEFF);
-check('CSV 转义引号与逗号', csv.includes('"含""引号"",逗号"'), csv.slice(0, 200));
-
-console.log('\n[响应式]');
-await page.setViewportSize({ width: 390, height: 844 });
-await page.goto(`${BASE}/#/overview`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(700);
-const navScroll = await page.evaluate(() => {
-  const nav = document.querySelector('.nav');
-  return { overflow: getComputedStyle(nav).overflowX, flexDir: getComputedStyle(document.querySelector('.app')).flexDirection };
-});
-check('移动端导航横向滚动', navScroll.overflow === 'auto', JSON.stringify(navScroll));
-check('移动端纵向布局', navScroll.flexDir === 'column');
-const svgWidth = await page.evaluate(() => {
-  const s = document.querySelector('#overview-chart svg');
-  return s ? s.getBoundingClientRect().width : 0;
-});
-const bodyWidth = await page.evaluate(() => document.body.getBoundingClientRect().width);
-check('图表不超出屏幕宽度', svgWidth <= bodyWidth + 2, `svg=${svgWidth} body=${bodyWidth}`);
-check('无横向溢出', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2));
-await page.screenshot({ path: `${OUT}/06-mobile-overview.png`, fullPage: true });
-
-await page.goto(`${BASE}/#/history`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(600);
-check('移动端表格横向滚动', await page.evaluate(() => {
-  const w = document.querySelector('.table-wrap');
-  return w ? getComputedStyle(w).overflowX === 'auto' : false;
-}));
-await page.screenshot({ path: `${OUT}/07-mobile-history.png`, fullPage: true });
-
-console.log('\n[说明页]');
-await page.setViewportSize({ width: 1440, height: 900 });
-await page.goto(`${BASE}/#/methodology`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(500);
-const prose = await page.locator('.prose').textContent();
-check('说明页含基准点位', prose.includes('基准点位'));
-check('说明页区分网页保存与 Git 提交', prose.includes('Git 提交'));
-check('说明页含隐私提醒', prose.includes('隐私'));
-check('说明页声明非金融资产', prose.includes('不是金融资产'));
-check('说明页有导入按钮', (await page.locator('[data-action="import-json"]').count()) === 1);
-await page.screenshot({ path: `${OUT}/08-methodology.png`, fullPage: true });
-
-console.log(`\n最终：${pass} 通过，${fail} 失败`);
-if (errors.length) console.log('控制台错误:', errors.join('\n'));
-await browser.close();
-process.exit(fail ? 1 : 0);
+console.log(`\n结果：${pass} 通过，${fail} 失败`);
+if (fail) process.exit(1);

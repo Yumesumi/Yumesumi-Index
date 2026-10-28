@@ -1,0 +1,24 @@
+{
+  "name": "yumesumi-index",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Yumesumi Index · 梦澄指数 — A Journal, Expressed as an Index.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postbuild": "node tools/build-check.mjs --dist",
+    "preview": "node tools/serve.mjs 8099",
+    "check": "node tools/verify.mjs && node tools/journal-verify.mjs && node tools/richtext-verify.mjs && node tools/build-check.mjs",
+    "check:subpath": "node tools/acceptance.mjs",
+    "check:e2e": "node tools/e2e.mjs",
+    "journal": "node tools/journal.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1",
+    "vite": "7.3.7"
+  }
+}

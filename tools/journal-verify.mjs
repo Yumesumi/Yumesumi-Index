@@ -27,6 +27,7 @@ title: 不急着给今天下结论
 mood: 平静 · 认真
 energy: 7
 tags: 生活, 自我观察
+cover: images/journal/2026-10-01.webp
 open: 1000.00
 high: 1088.20
 low: 972.50
@@ -47,6 +48,7 @@ console.log('\n[解析头部与正文]');
   check('标签拆分为数组', Array.isArray(e.record.tags) && e.record.tags.length === 2, JSON.stringify(e.record.tags));
   check('标签内容正确', e.record.tags[0] === '生活' && e.record.tags[1] === '自我观察');
   check('正文正确', e.record.body === '今天写了一些东西。', JSON.stringify(e.record.body));
+  check('封面解析正确', e.record.cover === 'images/journal/2026-10-01.webp', e.record.cover);
   check('OHLC 四个值都解析到', e.record.ohlc.open === 1000 && e.record.ohlc.close === 1086.42);
 }
 

@@ -36,7 +36,7 @@ for (const f of ['index.html', 'package-less']) {
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(repo, f));
 }
 fs.cpSync(path.join(REAL_REPO, 'data'), path.join(repo, 'data'), { recursive: true });
-fs.cpSync(path.join(REAL_REPO, 'assets'), path.join(repo, 'assets'), { recursive: true });
+fs.cpSync(path.join(REAL_REPO, 'src'), path.join(repo, 'src'), { recursive: true });
 fs.cpSync(path.join(REAL_REPO, 'tools'), path.join(repo, 'tools'), { recursive: true });
 fs.cpSync(path.join(REAL_REPO, 'journal'), path.join(repo, 'journal'), { recursive: true });
 // 沙箱从干净状态开始：只保留模板，清掉可能存在的日记文件

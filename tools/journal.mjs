@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import {
   validateRecord, normalizeRecord, isValidDateString, sortRecords, BASE_VALUE,
-} from '../assets/js/data.js';
+} from '../src/lib/data.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -101,6 +101,7 @@ function parseJournalFile(filePath) {
   let mood = '';
   let energy = null;
   let tags = [];
+  let cover = '';
   let body = raw;
   const raw_ohlc = {};
 
@@ -137,6 +138,10 @@ function parseJournalFile(filePath) {
             .filter(Boolean);
           break;
         }
+        case 'cover': {
+          cover = value;
+          break;
+        }
         case 'date': {
           if (value && value !== date) {
             errors.push(`头部 date (${value}) 与文件名日期 (${date}) 不一致，以文件名为准`);
@@ -168,6 +173,7 @@ function parseJournalFile(filePath) {
     mood,
     energy,
     tags,
+    cover,
     ohlc: raw_ohlc,
   };
 
@@ -206,6 +212,7 @@ function resolveRecord(entry, prevClose) {
     mood: r.mood,
     energy: r.energy,
     tags: r.tags,
+    cover: r.cover,
     ohlc: { open, high, low, close },
   });
 
@@ -250,20 +257,24 @@ function mergeRecords(existing, journalEntries) {
 }
 
 function writeRecords(records) {
-  const payload = records.map((r) => ({
-    date: r.date,
-    title: r.title,
-    body: r.body,
-    mood: r.mood ?? '',
-    energy: r.energy ?? null,
-    tags: Array.isArray(r.tags) ? r.tags : [],
-    ohlc: {
+  const payload = records.map((r) => {
+    const out = {
+      date: r.date,
+      title: r.title,
+      body: r.body,
+      mood: r.mood ?? '',
+      energy: r.energy ?? null,
+      tags: Array.isArray(r.tags) ? r.tags : [],
+    };
+    if (r.cover) out.cover = r.cover;
+    out.ohlc = {
       open: r.ohlc.open,
       high: r.ohlc.high,
       low: r.ohlc.low,
       close: r.ohlc.close,
-    },
-  }));
+    };
+    return out;
+  });
   fs.writeFileSync(RECORDS_FILE, `${JSON.stringify(payload, null, 2)}\n`, 'utf-8');
 }
 
@@ -366,6 +377,7 @@ title:
 mood:
 energy:
 tags:
+cover:
 open:
 high:
 low:
@@ -375,10 +387,11 @@ close:
 在这里写正文。
 
 > 必填：title、close，以及正文本身。
-> 可选：mood、energy（0–10）、tags（逗号分隔）。
+> 可选：mood、energy（0–10）、tags（逗号分隔）、cover（封面图片路径）。
 > open 留空则取上一条记录的收盘价；high 留空则取 max(open, close)；
 > low 留空则取 min(open, close)。
 > 上一条的收盘价是 ${openDefault.toFixed(2)}，可以直接填进 open。
+> 封面与正文插图放在 public/images/journal/，建议 WebP、宽度 ≤1600px。
 >
 > 日期以文件名为准。修改这个文件后运行：
 >   node tools/journal.mjs check

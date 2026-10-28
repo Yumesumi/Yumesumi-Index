@@ -1,0 +1,162 @@
+/**
+ * Yumesumi Index · 设计令牌
+ *
+ * 与梦澄中心共用一套品牌语言：深紫/近黑背景、MiSans、细描边、
+ * 低饱和薰衣草重点色。金融数据额外保留绿/红语义色，只用于涨跌。
+ */
+
+:root {
+  /* ---------- 背景层次 ---------- */
+  --ys-void: #05050c;
+  --ys-abyss: #080811;
+  --ys-night: #0d0b1a;
+  --ys-deep: #131024;
+  --ys-surface: #1a1630;
+  --ys-elevated: #221c3d;
+
+  /* ---------- 品牌紫 ---------- */
+  --ys-purple-deep: #2d1f56;
+  --ys-purple: #6d4fc4;
+  --ys-purple-bright: #9d84e8;
+  --ys-lavender: #b9a8f0;
+  --ys-lavender-soft: #cfc4f5;
+  --ys-accent: var(--ys-lavender);
+
+  /* ---------- 文字 ---------- */
+  --ys-text: #f2f0fa;
+  --ys-text-secondary: #b6b0cf;
+  --ys-text-muted: #837c9e;
+  --ys-text-faint: #5d5675;
+  --ys-text-inverse: #0b0916;
+
+  /* ---------- 描边 ---------- */
+  --ys-border: rgb(157 132 232 / 14%);
+  --ys-border-strong: rgb(157 132 232 / 26%);
+  --ys-border-subtle: rgb(157 132 232 / 8%);
+  --ys-border-faint: rgb(255 255 255 / 6%);
+
+  /* ---------- 涨跌语义色 ---------- */
+  --ys-up: #35c99a;
+  --ys-up-soft: rgb(53 201 154 / 14%);
+  --ys-down: #f07878;
+  --ys-down-soft: rgb(240 120 120 / 14%);
+  --ys-flat: #929daa;
+
+  /* ---------- 玻璃材质 ---------- */
+  --glass-blur: 22px;
+  --glass-blur-soft: 14px;
+  --glass-bg:
+    linear-gradient(145deg, rgb(255 255 255 / 5.5%) 0%, rgb(255 255 255 / 1.2%) 38%, rgb(157 132 232 / 4%) 100%),
+    rgb(14 11 27 / 62%);
+  --glass-bg-soft:
+    linear-gradient(160deg, rgb(255 255 255 / 3.6%) 0%, rgb(255 255 255 / 0.6%) 60%),
+    rgb(11 9 21 / 46%);
+  --glass-bg-data:
+    linear-gradient(180deg, rgb(255 255 255 / 3%) 0%, transparent 32%),
+    rgb(8 7 16 / 82%);
+  --glass-border: rgb(157 132 232 / 16%);
+  --glass-highlight: rgb(255 255 255 / 10%);
+  --glass-inner-glow: rgb(157 132 232 / 8%);
+
+  /* ---------- 阴影 ---------- */
+  --shadow-sm: 0 2px 10px rgb(3 2 10 / 34%);
+  --shadow-md: 0 18px 48px -18px rgb(3 2 10 / 62%);
+  --shadow-lg: 0 36px 90px -30px rgb(3 2 10 / 76%);
+  --shadow-glow: 0 0 80px -24px rgb(157 132 232 / 34%);
+  --shadow-inset: inset 0 1px 0 rgb(255 255 255 / 7%), inset 0 -1px 0 rgb(0 0 0 / 32%);
+
+  /* ---------- 字体 ---------- */
+  --ys-font-sans:
+    'MiSans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, -apple-system,
+    'Segoe UI', sans-serif;
+  --ys-font-mono: 'MiSans', ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
+
+  /* ---------- 字号 ---------- */
+  --ys-fs-3xs: 0.625rem;
+  --ys-fs-2xs: 0.6875rem;
+  --ys-fs-xs: 0.75rem;
+  --ys-fs-sm: 0.8125rem;
+  --ys-fs-base: 0.9375rem;
+  --ys-fs-md: 1rem;
+  --ys-fs-lg: clamp(1.0625rem, 0.98rem + 0.42vw, 1.25rem);
+  --ys-fs-xl: clamp(1.3rem, 1.1rem + 0.85vw, 1.85rem);
+  --ys-fs-2xl: clamp(1.7rem, 1.3rem + 1.7vw, 2.9rem);
+  --ys-fs-3xl: clamp(2.2rem, 1.5rem + 3vw, 4.4rem);
+  --ys-fs-hero: clamp(3rem, 1.5rem + 6.4vw, 7.2rem);
+
+  /* ---------- 行高 / 字距 ---------- */
+  --ys-lh-tight: 1.04;
+  --ys-lh-snug: 1.25;
+  --ys-lh-normal: 1.6;
+  --ys-lh-relaxed: 1.8;
+  --ys-ls-tight: -0.035em;
+  --ys-ls-snug: -0.018em;
+  --ys-ls-normal: 0;
+  --ys-ls-wide: 0.06em;
+  --ys-ls-wider: 0.14em;
+  --ys-ls-widest: 0.3em;
+
+  /* ---------- 字重 ---------- */
+  --ys-weight-thin: 200;
+  --ys-weight-light: 300;
+  --ys-weight-regular: 400;
+  --ys-weight-medium: 500;
+  --ys-weight-semibold: 600;
+  --ys-weight-bold: 700;
+
+  /* ---------- 间距 ---------- */
+  --ys-space-3xs: 0.25rem;
+  --ys-space-2xs: 0.5rem;
+  --ys-space-xs: 0.75rem;
+  --ys-space-sm: 1rem;
+  --ys-space-md: 1.5rem;
+  --ys-space-lg: 2rem;
+  --ys-space-xl: 3rem;
+  --ys-space-2xl: 4.5rem;
+  --ys-space-3xl: 7rem;
+
+  /* ---------- 布局 ---------- */
+  --ys-sidebar-w: 17rem;
+  --ys-topbar-h: 5.25rem;
+  --ys-content-max: 78rem;
+  --ys-gutter: clamp(1.1rem, 3.4vw, 3.25rem);
+  --ys-gap: clamp(0.9rem, 1.4vw, 1.35rem);
+
+  /* ---------- 圆角 ---------- */
+  --ys-radius-xs: 4px;
+  --ys-radius-sm: 7px;
+  --ys-radius-md: 11px;
+  --ys-radius-lg: 16px;
+  --ys-radius-xl: 22px;
+  --ys-radius-2xl: 30px;
+  --ys-radius-pill: 999px;
+
+  /* ---------- 动效 ---------- */
+  --ys-dur-fast: 160ms;
+  --ys-dur-base: 280ms;
+  --ys-dur-slow: 520ms;
+  --ys-dur-slower: 900ms;
+  --ys-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ys-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ys-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ys-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* ---------- 层次 ---------- */
+  --ys-z-ambience: 0;
+  --ys-z-content: 1;
+  --ys-z-topbar: 40;
+  --ys-z-sidebar: 50;
+  --ys-z-menu: 80;
+  --ys-z-modal: 100;
+  --ys-z-toast: 120;
+
+  /* ---------- 环境层 ---------- */
+  --ys-grid-size: 5rem;
+  --ys-grid-line: rgb(157 132 232 / 5%);
+  --ys-grain-opacity: 0.05;
+  --ys-vignette-opacity: 0.62;
+  --ys-aurora-opacity: 0.58;
+  --ys-dur-aurora-a: 38s;
+  --ys-dur-aurora-b: 54s;
+  --ys-chart-hole: #0b0916;
+}

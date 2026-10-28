@@ -1,0 +1,130 @@
+/* =========================================================
+   motion.css — 关键帧与渐进显现
+   所有持续动画只改变 transform / opacity，避免触发布局。
+   ========================================================= */
+
+/* 进入视口时显现；用 translate 而非 transform，保留卡片自己的 hover 位移 */
+.reveal {
+  opacity: 0;
+}
+
+.reveal.is-in {
+  animation: reveal-in 680ms var(--ys-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes aurora-a {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(3vmax, 2.5vmax, 0); }
+}
+
+@keyframes aurora-b {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-3.5vmax, -2vmax, 0); }
+}
+
+@keyframes aurora-c {
+  from { transform: translate3d(-50%, 0, 0); opacity: calc(var(--ys-aurora-opacity) * 0.7); }
+  to { transform: translate3d(-50%, 2vmax, 0); opacity: var(--ys-aurora-opacity); }
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: var(--floor); }
+  48% { opacity: var(--peak); }
+  76% { opacity: calc((var(--floor) + var(--peak)) / 2); }
+}
+
+@keyframes star-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(var(--dx), var(--dy), 0); }
+}
+
+@keyframes shoot {
+  0%, 93% {
+    opacity: 0;
+    transform: rotate(28deg) translate3d(0, -10vh, 0);
+  }
+  94% { opacity: 0.5; }
+  100% {
+    opacity: 0;
+    transform: rotate(28deg) translate3d(26vw, 12vh, 0);
+  }
+}
+
+@keyframes orb-float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-1.4rem, 1rem, 0) scale(1.035); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+
+@keyframes chart-enter {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.chart-stage.is-entering {
+  animation: chart-enter 520ms var(--ys-ease-out) both;
+}
+
+/* 低性能/减少动效：全部停用持续动画 */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal.is-in {
+    opacity: 1;
+    animation: none;
+  }
+
+  .amb-star,
+  .amb-aurora,
+  .amb-shooting,
+  .hero-panel::after,
+  .live-pill i,
+  .chart-stage.is-entering {
+    animation: none !important;
+  }
+
+  .hero-panel {
+    transform: none;
+  }
+}
