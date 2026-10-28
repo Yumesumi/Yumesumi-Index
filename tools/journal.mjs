@@ -290,10 +290,11 @@ function gitRun(args, label) {
 }
 
 /**
- * 推送到远端。默认直连，失败后按序尝试若干代理：
+ * 推送到远端。失败时按序尝试若干代理：
  *   1. 环境变量里的代理（HTTPS_PROXY / https_proxy）
  *   2. 本机 SOCKS5 代理 127.0.0.1:10808
- * 全部使用一次性 git 参数，不写入 git 全局配置。
+ *   3. 交给 tools/v2ray.mjs：自动切换 V2rayN 节点直到有一个能用
+ * 全部使用一次性 git 参数或子进程，不写入 git 全局配置。
  */
 function pushWithFallback(branch) {
   const direct = git(['push', 'origin', branch]);
@@ -322,7 +323,20 @@ function pushWithFallback(branch) {
     if (attempt.stderr) info(attempt.stderr.trim().split('\n')[0]);
   }
 
-  fail('push 失败（所有代理重试后仍失败）');
+  // 最后交给 v2ray 工具：自动换节点直到有一个能用
+  const v2rayScript = path.join(REPO, 'tools', 'v2ray.mjs');
+  if (fs.existsSync(v2rayScript)) {
+    info('代理仍不通，尝试自动切换 V2rayN 节点…');
+    const viaNode = spawnSync(
+      process.execPath,
+      ['--no-warnings', v2rayScript, 'with-proxy', 'git', 'push', 'origin', branch],
+      { cwd: REPO, encoding: 'utf-8' },
+    );
+    if (viaNode.status === 0) return { ok: true, viaProxy: 'v2rayN 自动换节点' };
+    if (viaNode.stdout) info(viaNode.stdout.trim().split('\n').slice(-3).join('\n'));
+  }
+
+  fail('push 失败（所有代理与节点重试后仍失败）');
   return { ok: false, viaProxy: null };
 }
 
