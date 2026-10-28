@@ -71,7 +71,10 @@ function todayISO() {
 
 function baseValue() {
   const meta = readJSON(INDEX_FILE, {});
-  const v = Number(meta?.base_value);
+  const raw = meta?.base_value;
+  // 基准可以是 0，所以不能把 null/undefined/'' 当成 0
+  if (raw === null || raw === undefined || raw === '') return BASE_VALUE;
+  const v = Number(raw);
   return Number.isFinite(v) ? v : BASE_VALUE;
 }
 
@@ -443,6 +446,50 @@ function cmdSync() {
   info(`data/records.json 现有 ${result.records.length} 条记录`);
 }
 
+/**
+ * 显式删除指定日期的记录。
+ *
+ * mergeRecords 刻意保留没有日记文件的记录（防误删），
+ * 但也因此没有「删除」这条路径。本命令是唯一的显式删除入口：
+ * 必须指名日期，且不传 --force 时先列出将删除的内容。
+ */
+function cmdPrune(args) {
+  const dates = args.filter((a) => !a.startsWith('--'));
+  if (!dates.length) die('请指定要删除的日期，例如：node tools/journal.mjs prune 2026-10-27');
+  const force = args.includes('--force');
+
+  const existing = readJSON(RECORDS_FILE, []);
+  const byDate = new Map(existing.map((r) => [r.date, r]));
+  const targets = [];
+  for (const d of dates) {
+    if (!isValidDateString(d)) die(`日期格式无效：${d}`);
+    if (!byDate.has(d)) {
+      warn(`没有这条记录，跳过：${d}`);
+      continue;
+    }
+    targets.push(byDate.get(d));
+  }
+  if (!targets.length) {
+    info('没有需要删除的记录。');
+    return;
+  }
+
+  head('将要删除的记录');
+  for (const r of targets) {
+    out(`  ${r.date}  ${r.title}  收 ${r.ohlc.close}`);
+  }
+  if (!force) {
+    info('确认无误后加 --force 执行删除。');
+    return;
+  }
+
+  const remove = new Set(targets.map((r) => r.date));
+  const kept = existing.filter((r) => !remove.has(r.date));
+  writeRecords(kept);
+  ok(`已删除 ${targets.length} 条记录`);
+  info(`data/records.json 现有 ${kept.length} 条记录`);
+}
+
 function cmdCommit(args) {
   const only = args[0];
   const entries = readJournalFiles();
@@ -514,6 +561,7 @@ function runCli() {
     case 'new': cmdNew(args); break;
     case 'check': process.exit(cmdCheck() ? 0 : 1); break;
     case 'sync': cmdSync(); break;
+    case 'prune': cmdPrune(args); break;
     case 'commit': cmdCommit(args); break;
     default:
       out(`${C.bold}YSI 日记工具${C.reset}

@@ -116,13 +116,26 @@ console.log('\n[负数点位]');
   )));
 }
 {
-  // 前收为 0 时不应产生 Infinity / NaN
+  // 前收为 0 时不应产生 Infinity / NaN；此时涨跌幅没有可比基数，记为 null
   const zero = computeMetrics([
     { date: '2026-10-27', ohlc: { open: 0, high: 0, low: 0, close: 0 } },
     { date: '2026-10-28', ohlc: { open: 0, high: 50, low: -50, close: 50 } },
   ], 1000);
-  check('前收为 0 时涨跌幅不产生 NaN', Number.isFinite(zero[1].changePct), String(zero[1].changePct));
+  check('前收为 0 时涨跌幅不产生 NaN', !Number.isNaN(zero[1].changePct), String(zero[1].changePct));
+  check('前收为 0 时涨跌幅记为无意义(null)', zero[1].changePct === null, String(zero[1].changePct));
   check('前收为 0 时涨跌额仍准确', near(zero[1].change, 50));
+}
+{
+  // 基准为 0 时累计涨跌幅同样没有可比基数
+  const zeroBase = computeMetrics([
+    { date: '2026-10-27', ohlc: { open: 100, high: 120, low: 90, close: 110 } },
+    { date: '2026-10-28', ohlc: { open: 110, high: 130, low: 100, close: 120 } },
+  ], 0);
+  check('基准为 0 时累计涨跌幅为 null', zeroBase[0].cumPct === null, String(zeroBase[0].cumPct));
+  check('基准为 0 时累计涨跌额准确', near(zeroBase[0].cumChange, 110));
+  check('基准为 0 时首条涨跌幅为 null', zeroBase[0].changePct === null, String(zeroBase[0].changePct));
+  // 前收 110 → 收 120：涨 10，涨跌幅 = 10 / |110| = 9.0909...%
+  check('基准为 0 时第二条涨跌幅正常', near(zeroBase[1].changePct, (10 / 110) * 100, 1e-9), String(zeroBase[1].changePct));
 }
 {
   // 负数 OHLC 关系校验

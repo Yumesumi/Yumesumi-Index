@@ -17,9 +17,17 @@ import {
 import { renderKLine } from './chart.js';
 
 const STORAGE_KEY = 'ysi.pending.v1';
+/* 数据频率的显示文案 */
+const FREQUENCY_LABEL = {
+  daily: '日频',
+  weekly: '周频',
+  monthly: '月频',
+};
+/* 时间范围：数据跨度可能长达数年，除了近段也提供按年的档位 */
 const RANGES = [
-  { key: '30', label: '30 天' },
   { key: '90', label: '90 天' },
+  { key: '365', label: '1 年' },
+  { key: '1095', label: '3 年' },
   { key: 'all', label: '全部' },
 ];
 const VIEWS = ['overview', 'journal', 'history', 'methodology'];
@@ -269,7 +277,7 @@ function renderOverview(host) {
       <div class="chart-panel">
         <div class="chart-toolbar">
           <div>
-            <h2 style="margin:0;font-size:14px;font-weight:600">日 K 线</h2>
+            <h2 style="margin:0;font-size:14px;font-weight:600">${FREQUENCY_LABEL[state.meta.frequency] ?? ''}K 线</h2>
             <span class="muted" style="font-size:12px">${state.metrics.length ? `共 ${state.metrics.length} 条真实记录` : '暂无数据'}</span>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -306,7 +314,7 @@ function renderOverview(host) {
       <div class="section-head"><h2>指数理念</h2></div>
       <div class="panel prose">
         <p><strong>A Journal, Expressed as an Index.</strong> 用指数表达日记，用记录留住时间。</p>
-        <p>每天是一根 K 线：开盘是那天开始时的状态，最高是当天最好的时刻，最低是最难熬的时候，收盘是落笔时的自己。相邻两条记录可以相隔好几天——中间的日子没有记录，就没有 K 线，指数不会替你编造。</p>
+        <p>每条记录是一根 K 线：开盘是那期开始时的状态，最高是当期最好的时刻，最低是最难熬的时候，收盘是落笔时的自己。相邻两条记录可以相隔好几天——中间的日子没有记录，就没有 K 线，指数不会替你编造。</p>
         <p>基准点位为 <code>${formatNumber(state.meta.base_value)}</code>。涨跌颜色只是记账符号，不代表人生价值的高低。</p>
       </div>
     </section>
@@ -508,12 +516,12 @@ function renderMethodology(host) {
     <div class="prose">
       <section>
         <h2>YSI 是什么</h2>
-        <p><strong>梦澄指数 / Yumesumi Index（YSI）</strong> 是一个以日记为内核、以指数为外壳的个人档案站。每一天对应一根日 K 线，记录那天真实的数字与文字。</p>
+        <p><strong>梦澄指数 / Yumesumi Index（YSI）</strong> 是一个以记录为内核、以指数为外壳的个人档案站。每一条记录对应一根 K 线，记录当期的数字与文字。</p>
         <p>它借用了金融指数终端的视觉语言，但这里没有交易、没有资产、没有市场。点位只代表记录本身，不能换算成任何东西。</p>
         <dl class="kv">
           <dt>基准点位</dt><dd class="num">${formatNumber(state.meta.base_value)}</dd>
           <dt>基准日期</dt><dd class="num">${state.meta.base_date || '—'}</dd>
-          <dt>频率</dt><dd>${state.meta.frequency === 'daily' ? '日频' : state.meta.frequency}</dd>
+          <dt>频率</dt><dd>${FREQUENCY_LABEL[state.meta.frequency] ?? state.meta.frequency}</dd>
           <dt>数据模式</dt><dd>手动记录，不自动生成</dd>
           <dt>当前正式记录</dt><dd class="num">${state.published.length} 条</dd>
         </dl>
@@ -536,11 +544,13 @@ function renderMethodology(host) {
         <ul>
           <li>日涨跌额 = 当日收盘价 − 上一条有效记录的收盘价</li>
           <li>日涨跌幅 = 日涨跌额 ÷ |上一条有效记录收盘价| × 100%</li>
-          <li>累计变化 = (最新收盘价 − ${formatNumber(state.meta.base_value)}) ÷ ${formatNumber(state.meta.base_value)} × 100%</li>
+          ${state.meta.base_value === 0
+    ? '<li>累计变化 = 最新收盘价 − 0（基准为 0 时没有可比基数，不计算累计百分比）</li>'
+    : `<li>累计变化 = (最新收盘价 − ${formatNumber(state.meta.base_value)}) ÷ ${formatNumber(state.meta.base_value)} × 100%</li>`}
         </ul>
         <p>第一条记录没有前一条收盘价，统一以基准点位 ${formatNumber(state.meta.base_value)} 作为比较对象。所有涨跌都由数据算出，页面任何地方都不单独硬编码这些数字。</p>
         <h3>点位可以是负数</h3>
-        <p>点位不限定为正数。当期出现负数时，涨跌幅的分母取前收的<strong>绝对值</strong>，这样涨跌额的符号与涨跌幅始终一致——从 −200 涨到 −100 记作 +50%，而不是被除法翻转成负数。前收为 0 时没有可比基数，涨跌幅记为 0，涨跌额仍然准确。</p>
+        <p>点位不限定为正数。当期出现负数时，涨跌幅的分母取前收的<strong>绝对值</strong>，这样涨跌额的符号与涨跌幅始终一致——从 −200 涨到 −100 记作 +50%，而不是被除法翻转成负数。前收为 0 时没有可比基数，涨跌幅显示为「—」，涨跌额仍然准确。</p>
       </section>
 
       <section>

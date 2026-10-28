@@ -118,6 +118,24 @@ close: 1086.42
 
 完整说明见 [`journal/README.md`](journal/README.md)。
 
+### 历史序列的生成
+
+`journal/` 里现有的历史序列由 `tools/gen-history.mjs` 按既定的走势描述生成：
+
+```bash
+node tools/gen-history.mjs --stats   # 只看统计，不写文件
+node tools/gen-history.mjs --dump    # 打印全部日期与收盘价
+node tools/gen-history.mjs           # 重新生成，覆盖 journal/ 下的日记
+```
+
+- 控制点（`ANCHORS`）定义宏观走势，区间内线性插值。
+- 波动由带种子的伪随机噪声叠加，噪声在每个区间两端收敛到 0，
+  这样极值必然落在控制点上——2021-02-24 的 36741 就是历史最高点。
+- 固定随机种子，重复运行结果完全一致。
+- 暴跌日与峰值日逐日生成，用来呈现跳空过程。
+
+生成器只写 `journal/`，`data/records.json` 仍由 `tools/journal.mjs sync` 产出。
+
 ### 两个文件的关系
 
 | | 角色 | 谁写 |
@@ -148,7 +166,7 @@ close: 1086.42
 │       ├── data.js         # 数据加载、校验、指标计算、序列化
 │       └── chart.js        # 原生 SVG 日 K 线绘制
 ├── data/
-│   ├── index.json          # 指数元信息
+│   ├── index.json          # 指数元信息（基准、基准日期、频率）
 │   └── records.json        # 正式记录（站点唯一数据源）
 ├── journal/                # 日记源文件（你手动编辑）
 │   ├── TEMPLATE.md         # 模板
@@ -159,11 +177,13 @@ close: 1086.42
 ├── tools/                  # 本地预览与验证脚本（不影响站点运行）
 │   ├── serve.mjs           # 本地静态服务器
 │   ├── journal.mjs         # 日记合并与发布
+│   ├── gen-history.mjs     # 按走势描述生成历史周记序列
 │   ├── verify.mjs          # 数据层单元校验
 │   ├── e2e.mjs             # 页面端到端校验
 │   ├── acceptance.mjs      # 验收测试
 │   ├── journal-verify.mjs  # 日记流程单元校验
-│   └── journal-e2e.mjs     # 日记流程端到端校验
+│   ├── journal-e2e.mjs     # 日记流程端到端校验
+│   └── v2ray.mjs           # V2rayN 控制与代理故障转移
 ├── README.md
 └── .nojekyll
 ```
@@ -175,14 +195,18 @@ close: 1086.42
   "name": "Yumesumi Index",
   "name_zh": "梦澄指数",
   "symbol": "YSI",
-  "base_value": 1000,
-  "base_date": "2026-10-27",
-  "frequency": "daily",
+  "base_value": 0,
+  "base_date": "2017-11-11",
+  "frequency": "weekly",
   "data_mode": "manual"
 }
 ```
 
 基准日期只是指数的设定信息，**不代表系统为该日期自动生成了一条正式记录**。
+
+基准点位为 `0`。这意味着「相对基准的涨跌幅」没有可比基数——除以 0 没有意义。
+此时页面显示「—」而不是 0.00%，累计涨跌额依然准确。基准线 0 始终画在图表上，
+是判断「水上还是水下」的唯一参照。
 
 ### `data/records.json`
 
@@ -217,17 +241,17 @@ close: 1086.42
 
 ### 指数规则
 
-基准点位 `1000.00`。
+基准点位 `0`。
 
 ```
 日涨跌额  = 当日收盘价 − 上一条有效记录的收盘价
 日涨跌幅  = 日涨跌额 ÷ |上一条有效记录收盘价| × 100%
-累计变化  = (最新收盘价 − 1000) ÷ 1000 × 100%
+累计变化  = 最新收盘价 − 0        （基准为 0，累计百分比无意义，不显示）
 ```
 
 第一条记录没有前一条收盘价，统一以基准点位作为比较对象。相邻两条记录可以相隔数天——日变化的比较对象是**上一条真实记录**，中间没有记录的日期不会生成 K 线，也不会被补造成行情。
 
-**点位可以是负数。** 涨跌幅的分母取前收的绝对值，保证涨跌额与涨跌幅的符号始终一致：从 −200 涨到 −100 记作 +50%，而不会被除法翻转成负数。前收为 0 时没有可比基数，涨跌幅记为 0，涨跌额仍然准确。
+**点位可以是负数。** 涨跌幅的分母取前收的绝对值，保证涨跌额与涨跌幅的符号始终一致：从 −200 涨到 −100 记作 +50%，而不会被除法翻转成负数。前收为 0 时没有可比基数，涨跌幅显示为「—」，涨跌额仍然准确。
 
 ### OHLC 约束
 
@@ -266,7 +290,7 @@ close: 1086.42
 ## 验证
 
 ```bash
-node tools/verify.mjs         # 数据层：67 项单元校验
+node tools/verify.mjs         # 数据层：72 项单元校验
 node tools/e2e.mjs            # 端到端：63 项页面校验（需 playwright-core）
 node tools/journal-verify.mjs # 日记流程：47 项单元校验
 node tools/journal-e2e.mjs    # 日记流程：46 项端到端（含本地 bare 远端 push）

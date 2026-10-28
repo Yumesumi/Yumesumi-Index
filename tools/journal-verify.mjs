@@ -272,7 +272,10 @@ close: 1030
 b`, '2026-12-21.md')),
   ];
   const res = mergeRecords([], entries);
-  check('第一条 open 用基准 1000', res.records[0].ohlc.open === 1000, String(res.records[0].ohlc.open));
+  // 基准值从仓库的 data/index.json 读取，不写死——基准调整后本用例依然有效
+  const meta = JSON.parse(fs.readFileSync(new URL('../data/index.json', import.meta.url), 'utf-8'));
+  const base = Number(meta.base_value);
+  check('第一条 open 用当前基准值', res.records[0].ohlc.open === base, `期望=${base} 实际=${res.records[0].ohlc.open}`);
   check('第二条 open 用上一条收盘 1020', res.records[1].ohlc.open === 1020, String(res.records[1].ohlc.open));
 }
 

@@ -28,8 +28,10 @@ function computeScale(metrics, baseValue) {
     if (Number.isFinite(m.ohlc.high)) max = Math.max(max, m.ohlc.high);
   }
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    min = baseValue * 0.9;
-    max = baseValue * 1.1;
+    // 数据缺失时给一个以基准为中心的默认区间
+    const span = Math.max(Math.abs(baseValue), 1);
+    min = baseValue - span * 0.1;
+    max = baseValue + span * 0.1;
   }
   if (min === max) {
     // 所有点位重合时给一个可见的区间：以 0 为中心的相对幅度，
@@ -227,13 +229,17 @@ export function renderKLine(host, metrics, options = {}) {
     crosshair.setAttribute('opacity', '0.5');
     const dir = m.change > 0 ? 'up' : m.change < 0 ? 'down' : 'flat';
     const sign = m.change > 0 ? '+' : m.change < 0 ? '−' : '';
+    // 涨跌幅在没有可比基数时为 null，此时只显示涨跌额
+    const pctText = Number.isFinite(m.changePct)
+      ? ` (${sign}${formatNumber(Math.abs(m.changePct))}%)`
+      : '';
     tip.innerHTML = `
       <div class="tip-date">${m.date}</div>
       <div class="tip-row"><span>开</span><b>${formatNumber(m.ohlc.open)}</b></div>
       <div class="tip-row"><span>高</span><b>${formatNumber(m.ohlc.high)}</b></div>
       <div class="tip-row"><span>低</span><b>${formatNumber(m.ohlc.low)}</b></div>
       <div class="tip-row"><span>收</span><b>${formatNumber(m.ohlc.close)}</b></div>
-      <div class="tip-row"><span>涨跌</span><b class="${dir}">${sign}${formatNumber(Math.abs(m.change))} (${sign}${formatNumber(Math.abs(m.changePct))}%)</b></div>
+      <div class="tip-row"><span>涨跌</span><b class="${dir}">${sign}${formatNumber(Math.abs(m.change))}${pctText}</b></div>
       ${m.title ? `<div class="tip-title">${m.title.replace(/[<>&]/g, '')}</div>` : ''}
     `;
     tip.hidden = false;

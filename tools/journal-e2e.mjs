@@ -46,6 +46,11 @@ for (const f of fs.readdirSync(path.join(repo, 'journal'))) {
 // 数据文件也置空：本用例断言的是「从零新增」的行为，
 // 不能受真实仓库当前已有记录的影响
 fs.writeFileSync(path.join(repo, 'data', 'records.json'), '[]\n', 'utf-8');
+// 基准固定为 1000：本用例要验证 open/high/low 的缺省补全规则，
+// 需要一个已知的基准值，不能跟着真实仓库的基准设置变
+const indexMeta = JSON.parse(fs.readFileSync(path.join(repo, 'data', 'index.json'), 'utf-8'));
+indexMeta.base_value = 1000;
+fs.writeFileSync(path.join(repo, 'data', 'index.json'), `${JSON.stringify(indexMeta, null, 2)}\n`, 'utf-8');
 
 git(['init', '-b', 'main']);
 git(['config', 'user.name', 'Test']);
@@ -147,7 +152,7 @@ close: 1090.00
   check('标题已更新', recs[0]?.title === '改过的标题');
   check('正文已更新', recs[0]?.body === '改过的正文。');
   check('收盘价已更新', recs[0]?.ohlc.close === 1090);
-  check('缺省 open 取上一条收盘（此为第一条，取基准 1000）', recs[0]?.ohlc.open === 1000, String(recs[0]?.ohlc.open));
+  check('缺省 open 取上一条收盘（此为第一条，取沙箱基准 1000）', recs[0]?.ohlc.open === 1000, String(recs[0]?.ohlc.open));
   check('缺省 high 取 max(open, close)', recs[0]?.ohlc.high === 1090, String(recs[0]?.ohlc.high));
   check('缺省 low 取 min(open, close)', recs[0]?.ohlc.low === 1000, String(recs[0]?.ohlc.low));
 }

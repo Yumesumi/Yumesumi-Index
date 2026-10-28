@@ -161,15 +161,17 @@ export function sortRecords(records) {
  * 计算涨跌幅。
  *
  * 常规做法是 (close / prevClose - 1) × 100，但当前收为负数时该式会翻转符号：
- * 从 -200 涨到 -100 是上涨（+100），公式却算出 -50%。前收为 0 时更会除零。
+ * 从 -200 涨到 -100 是上涨（+100），公式却算出 -50%。
  *
  * 因此这里改用「以变动幅度对前收的绝对值取比」的写法，符号由 change 单独决定：
  *   涨跌幅 = change / |prevClose| × 100
  * 这样不论前收是正、负还是 0，方向都与涨跌额保持一致。
- * 前收为 0 时没有可比的基数，涨跌幅记为 0，涨跌额仍然准确。
+ *
+ * 前收为 0 时没有可比的基数，涨跌幅没有意义，返回 null——
+ * 页面会显示「—」而不是误导性的 0.00%。涨跌额仍然准确。
  */
 export function computeChangePct(close, prevClose) {
-  if (!Number.isFinite(close) || !Number.isFinite(prevClose) || prevClose === 0) return 0;
+  if (!Number.isFinite(close) || !Number.isFinite(prevClose) || prevClose === 0) return null;
   return ((close - prevClose) / Math.abs(prevClose)) * 100;
 }
 
@@ -300,8 +302,9 @@ export function toCSV(records, baseValue = BASE_VALUE) {
     r.ohlc.low,
     r.ohlc.close,
     r.change.toFixed(2),
-    r.changePct.toFixed(2),
-    r.cumPct.toFixed(2),
+    // 百分比在没有可比基数时为 null，写出空单元格而不是 0.00
+    Number.isFinite(r.changePct) ? r.changePct.toFixed(2) : '',
+    Number.isFinite(r.cumPct) ? r.cumPct.toFixed(2) : '',
     r.title,
     r.mood,
     r.energy ?? '',
@@ -359,7 +362,11 @@ export async function loadIndex() {
     name: meta.name ?? 'Yumesumi Index',
     name_zh: meta.name_zh ?? '梦澄指数',
     symbol: meta.symbol ?? 'YSI',
-    base_value: Number.isFinite(Number(meta.base_value)) ? Number(meta.base_value) : BASE_VALUE,
+    // 基准可以是 0（此时没有可比基数，累计百分比显示为「—」），
+    // 所以不能用 || 兜底，也不能把 null 当成 0
+    base_value: meta.base_value === null || meta.base_value === undefined || meta.base_value === ''
+      ? BASE_VALUE
+      : (Number.isFinite(Number(meta.base_value)) ? Number(meta.base_value) : BASE_VALUE),
     base_date: isValidDateString(meta.base_date) ? meta.base_date : '',
     frequency: meta.frequency ?? 'daily',
     data_mode: meta.data_mode ?? 'manual',
