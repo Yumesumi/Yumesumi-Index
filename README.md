@@ -262,7 +262,7 @@ npm run verify:production # 26 项线上检查（默认 https://index.yumesumi.c
 
 `e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。
 
-`npm run verify:production` 直接访问线上域名，验证 HTML、数据、CNAME、HTTPS 跳转、字体、图表、返回主站按钮、移动端菜单焦点与哈希路由。可用 `YSI_PRODUCTION_URL` 指向其他部署地址。
+`npm run verify:production` 直接访问线上域名，验证 HTML、数据、CNAME、HTTPS 跳转、字体、图表、返回主站按钮、移动端菜单焦点与哈希路由。可用 `YSI_PRODUCTION_URL` 指向其他部署地址；网络需要代理时设置 `YSI_PROXY=http://127.0.0.1:10808`。
 
 `tools/journal-e2e.mjs` 在临时沙箱中自建 bare 远端，完整跑 `new → check → sync → commit → push`，不会触碰真实仓库或 GitHub。
 

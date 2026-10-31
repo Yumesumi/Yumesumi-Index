@@ -55,7 +55,11 @@ check('HTTP 跳转到 HTTPS', [301, 302, 307, 308].includes(httpRes.status) && (
 
 const pw = await import('playwright-core');
 const { chromium } = pw.default ?? pw;
-const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+const proxy = process.env.YSI_PROXY || process.env.HTTPS_PROXY;
+const browser = await chromium.launch({
+  executablePath: CHROME,
+  args: ['--no-sandbox', ...(proxy ? [`--proxy-server=${proxy}`] : [])],
+});
 const errors = [];
 const failed = [];
 
