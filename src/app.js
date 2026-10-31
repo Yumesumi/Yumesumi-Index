@@ -529,17 +529,7 @@ function bindEvents() {
     if (action === 'toggle-menu') { toggleMobileNav(); return; }
     if (action === 'close-menu') { closeMobileNav(); return; }
     if (action === 'retry') { window.location.reload(); return; }
-    if (action === 'toggle-ma') {
-      state.showMA = !state.showMA;
-      renderView();
-      return;
-    }
-    if (action === 'range') {
-      state.range = trigger.dataset.range;
-      state.window = null;
-      state.historyLimit = 120;
-      renderView();
-    }
+
   });
 
   window.addEventListener('hashchange', () => applyRoute());

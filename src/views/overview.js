@@ -193,5 +193,27 @@ export function renderOverview(host, state, handlers = {}) {
       emptyText: rangeEmptyHint(state.metrics, window) || '还没有正式记录，图表不会凭空生成数据。',
       onWindowCommit,
     });
+
+    const controls = host.querySelector('.chart-controls');
+    controls?.addEventListener('click', (event) => {
+      const rangeButton = event.target.closest('[data-action="range"]');
+      if (rangeButton) {
+        state.range = rangeButton.dataset.range;
+        state.window = null;
+        const nextWindow = resolveWindow(state.metrics, state.range, null);
+        chartHost._chartState?.applyWindow(nextWindow);
+        syncRangeButtons(host, state);
+        const current = recordsInWindow(state.metrics, nextWindow);
+        if (summaryEl) summaryEl.textContent = rangeSummary(state, nextWindow, current);
+        return;
+      }
+      const maButton = event.target.closest('[data-action="toggle-ma"]');
+      if (maButton) {
+        state.showMA = !state.showMA;
+        maButton.classList.toggle('is-on', state.showMA);
+        maButton.setAttribute('aria-pressed', String(state.showMA));
+        chartHost._chartState?.setShowMA(state.showMA);
+      }
+    });
   }
 }

@@ -168,6 +168,28 @@ export function renderHistory(host, state, handlers = {}) {
       emptyText: rangeEmptyHint(state.metrics, window) || '还没有正式记录，图表不会凭空生成数据。',
       onWindowCommit,
     });
+
+    const controls = host.querySelector('.chart-controls');
+    controls?.addEventListener('click', (event) => {
+      const rangeButton = event.target.closest('[data-action="range"]');
+      if (rangeButton) {
+        state.range = rangeButton.dataset.range;
+        state.window = null;
+        state.historyLimit = PAGE_SIZE;
+        const nextWindow = resolveWindow(state.metrics, state.range, null);
+        chartHost._chartState?.applyWindow(nextWindow);
+        syncRangeButtons(host, state);
+        paintWindow(nextWindow);
+        return;
+      }
+      const maButton = event.target.closest('[data-action="toggle-ma"]');
+      if (maButton) {
+        state.showMA = !state.showMA;
+        maButton.classList.toggle('is-on', state.showMA);
+        maButton.setAttribute('aria-pressed', String(state.showMA));
+        chartHost._chartState?.setShowMA(state.showMA);
+      }
+    });
   }
 
   // 行情表内部重绘时保留这个监听器，加载更多不再触发整页渲染

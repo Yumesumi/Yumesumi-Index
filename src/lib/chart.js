@@ -178,7 +178,7 @@ function lowerBound(items, ms) {
  */
 export function renderKLine(host, metrics, options = {}) {
   const baseValue = options.baseValue ?? 1000;
-  const showMA = options.showMA ?? true;
+  let showMA = options.showMA ?? true;
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   host.textContent = '';
@@ -190,7 +190,7 @@ export function renderKLine(host, metrics, options = {}) {
   }
 
   const all = metrics.map((m) => ({ ...m, ms: dateToMs(m.date) }));
-  const maValues = showMA && all.length >= 7
+  const maValues = all.length >= 7
     ? movingAverage(all.map((m) => m.ohlc.close), 7)
     : all.map(() => null);
 
@@ -587,6 +587,16 @@ export function renderKLine(host, metrics, options = {}) {
   host._chartState = {
     redraw: draw,
     getWindow: () => ({ ...current }),
+    applyWindow(nextWindow) {
+      if (!nextWindow) return;
+      current = normalize(nextWindow.startMs, nextWindow.endMs);
+      lastCommitted = { ...current };
+      draw();
+    },
+    setShowMA(value) {
+      showMA = !!value;
+      draw();
+    },
   };
   if (!observers.has(host)) {
     const ro = new ResizeObserver(() => {

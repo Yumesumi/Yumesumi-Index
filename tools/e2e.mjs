@@ -147,8 +147,10 @@ try {
   check('悬停提示含 OHLC', (await page.locator('#overview-chart .chart-tip').innerText()).includes('开'));
   await page.mouse.move(0, 0);
 
+  await page.evaluate(() => { window.__heroBeforePreset = document.querySelector('.hero-panel'); });
   await page.click('.seg-btn[data-range="7"]');
   await page.waitForTimeout(600);
+  check('预设窗口不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.hero-panel')));
   check('7 天窗口被选中', (await page.locator('.seg-btn[data-range="7"]').getAttribute('class')).includes('is-active'));
   const weekWindow = await readWindow();
   check('7 天窗口只显示近期记录', weekWindow.visible > 0 && weekWindow.visible < 6, String(weekWindow.visible));
@@ -194,6 +196,7 @@ try {
   check('关闭 MA7 后均线消失', (await page.locator('#overview-chart .chart-ma').count()) === 0);
   await page.click('[data-action="toggle-ma"]');
   await page.waitForTimeout(300);
+  check('MA 切换不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.hero-panel')));
 
   /* ================= 日记 ================= */
   console.log('\n[桌面 · 日记]');

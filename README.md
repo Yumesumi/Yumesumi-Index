@@ -87,7 +87,7 @@ K 线图使用原生 SVG，无图表库：
 - 桌面端滚轮缩放，移动端双指缩放；鼠标左键或单指拖拽平移。窗口变化后会显示「自定义」。
 - Y 轴固定在左侧；纵轴跟随当前可视窗口自适应，基准线落在范围外时用边缘提示标注。
 - MA7 基于全部真实记录计算，窗口边缘保持连续。
-- 缩放 / 平移提交后只更新窗口按钮、摘要与行情表，不重建 Hero 或其他页面模块。
+- 预设窗口、缩放 / 平移与 MA 切换都只更新盘面相关局部，不重建 Hero 或其他页面模块。
 
 ---
 
@@ -256,7 +256,7 @@ close: 1086.42
 ```bash
 npm run check          # 数据层 72 项 + 日记流程 48 项 + 正文渲染 21 项 + 源数据检查
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
-npm run check:e2e      # 92 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
+npm run check:e2e      # 94 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
 npm run verify:production # 27 项线上检查（默认 https://index.yumesumi.cyou/）
 ```
