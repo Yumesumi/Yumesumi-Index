@@ -101,15 +101,13 @@ function currentView() {
   return VIEWS.includes(raw) ? raw : 'overview';
 }
 
-function commitChartWindow(window) {
-  if (!window) return;
-  state.window = { ...window };
-  state.range = 'custom';
-  state.historyLimit = 120;
-  renderView();
-}
-
-const chartHandlers = { onWindowCommit: commitChartWindow };
+const chartHandlers = {
+  commitWindow(window) {
+    if (!window) return;
+    state.window = { ...window };
+    state.range = 'custom';
+  },
+};
 
 function renderView() {
   const host = document.getElementById('view');

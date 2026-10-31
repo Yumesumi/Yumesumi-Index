@@ -233,10 +233,11 @@ export function renderKLine(host, metrics, options = {}) {
   const outsideLabel = div('chart-outside-label');
   outsideLabel.hidden = true;
   stage.append(outsideLabel, tip);
+  const svg = el('svg', { role: 'img' });
+  stage.insertBefore(svg, outsideLabel);
   shell.append(axis, stage);
   host.append(shell);
 
-  let svg = null;
   let crosshair = null;
   let dims = { hostWidth: 0, stageW: 0, height: 0, plotW: 0, plotH: 0, small: false, axisWidth: 0, padLeft: PAD.left };
   let visible = [];
@@ -294,14 +295,10 @@ export function renderKLine(host, metrics, options = {}) {
     axis.style.height = `${height}px`;
     stage.style.height = `${height}px`;
 
-    if (svg) svg.remove();
-    svg = el('svg', {
-      viewBox: `0 0 ${stageW} ${height}`,
-      width: String(stageW),
-      height: String(height),
-      role: 'img',
-    });
-    stage.insertBefore(svg, stage.firstChild);
+    svg.setAttribute('viewBox', `0 0 ${stageW} ${height}`);
+    svg.setAttribute('width', String(stageW));
+    svg.setAttribute('height', String(height));
+    svg.replaceChildren();
 
     const start = current.startMs;
     const end = current.endMs;

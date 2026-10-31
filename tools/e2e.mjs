@@ -157,6 +157,10 @@ try {
     String((weekWindow.end - weekWindow.start) / 86400000));
 
   const beforeZoom = weekWindow.end - weekWindow.start;
+  await page.evaluate(() => {
+    window.__heroNode = document.querySelector('.hero-panel');
+    window.__chartHost = document.querySelector('#overview-chart');
+  });
   box = await stageBox();
   await page.mouse.move(box.x + box.width * 0.55, box.y + box.height / 2);
   await page.mouse.wheel(0, -400);
@@ -165,6 +169,9 @@ try {
   check('滚轮缩放缩小时间窗口', (zoomedWindow.end - zoomedWindow.start) < beforeZoom,
     `${(zoomedWindow.end - zoomedWindow.start) / 86400000}d / ${beforeZoom / 86400000}d`);
   check('缩放后切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+  check('缩放不会重建整页', await page.evaluate(() => window.__heroNode?.isConnected && window.__heroNode === document.querySelector('.hero-panel')));
+  check('缩放不会重建盘面容器', await page.evaluate(() => window.__chartHost === document.querySelector('#overview-chart')));
+  check('窗口摘要同步为自定义', (await page.locator('#overview-range-summary').innerText()).includes('自定义窗口'));
 
   const beforePan = (await readWindow()).start.getTime();
   box = await stageBox();
@@ -245,11 +252,13 @@ try {
   const historyChart = page.locator('#history-chart');
   await historyChart.scrollIntoViewIfNeeded();
   await page.waitForTimeout(250);
+  await page.evaluate(() => { window.__historyHead = document.querySelector('.view-head'); });
   const historyBox = await page.locator('#history-chart .chart-stage').boundingBox();
   await page.mouse.move(historyBox.x + historyBox.width * 0.55, historyBox.y + historyBox.height / 2);
   await page.mouse.wheel(0, -320);
   await page.waitForTimeout(750);
   check('历史缩放切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+  check('历史缩放不会重建整页', await page.evaluate(() => window.__historyHead?.isConnected && window.__historyHead === document.querySelector('.view-head')));
   const historyVisible = Number(await historyChart.getAttribute('data-chart-visible'));
   check('行情表跟随缩放窗口', (await page.locator('.data-table tbody tr').count()) === Math.min(120, historyVisible),
     `${await page.locator('.data-table tbody tr').count()} / ${historyVisible}`);

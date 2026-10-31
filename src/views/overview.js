@@ -9,7 +9,9 @@ import {
 } from '../lib/selectors.js';
 import { entryCard } from '../components/entry-card.js';
 import { emptyState } from '../components/ui.js';
-import { maButton, rangeButtons, rangeSummary } from '../components/chart-controls.js';
+import {
+  maButton, rangeButtons, rangeSummary, syncRangeButtons,
+} from '../components/chart-controls.js';
 import { icon } from '../components/icons.js';
 
 function statCard({ label, value, sub, tone = '', index = 0 }) {
@@ -117,7 +119,7 @@ export function renderOverview(host, state, handlers = {}) {
         <div>
           <p class="eyebrow">MARKET CHART</p>
           <h3>盘面 K 线</h3>
-          <p class="panel-sub">${state.metrics.length ? rangeSummary(state, window, visible) : '暂无数据'}</p>
+          <p class="panel-sub" id="overview-range-summary">${state.metrics.length ? rangeSummary(state, window, visible) : '暂无数据'}</p>
         </div>
         <div class="chart-controls">
           ${rangeButtons(state)}
@@ -176,13 +178,20 @@ export function renderOverview(host, state, handlers = {}) {
 
   const chartHost = document.getElementById('overview-chart');
   if (chartHost) {
+    const summaryEl = host.querySelector('#overview-range-summary');
+    const onWindowCommit = (nextWindow) => {
+      handlers.commitWindow?.(nextWindow);
+      syncRangeButtons(host, state);
+      const current = recordsInWindow(state.metrics, nextWindow);
+      if (summaryEl) summaryEl.textContent = rangeSummary(state, nextWindow, current);
+    };
     renderKLine(chartHost, state.metrics, {
       baseValue: meta.base_value,
       showMA: state.showMA,
       window,
       animate: state.range !== 'custom',
       emptyText: rangeEmptyHint(state.metrics, window) || '还没有正式记录，图表不会凭空生成数据。',
-      onWindowCommit: handlers.onWindowCommit,
+      onWindowCommit,
     });
   }
 }

@@ -88,6 +88,7 @@ try {
   await page.mouse.move(liveStage.x + liveStage.width - 30, liveStage.y + liveStage.height / 2);
   await page.waitForTimeout(200);
   check('图表悬停提示正常', await page.locator('#overview-chart .chart-tip').isVisible());
+  await page.evaluate(() => { window.__liveHero = document.querySelector('.hero-panel'); });
   const spanBefore = Date.parse(await liveChart.getAttribute('data-chart-end')) - Date.parse(await liveChart.getAttribute('data-chart-start'));
   await page.mouse.move(liveStage.x + liveStage.width / 2, liveStage.y + liveStage.height / 2);
   await page.mouse.wheel(0, -320);
@@ -95,6 +96,7 @@ try {
   const spanAfter = Date.parse(await liveChart.getAttribute('data-chart-end')) - Date.parse(await liveChart.getAttribute('data-chart-start'));
   check('线上图表支持滚轮缩放', spanAfter < spanBefore, `${spanAfter / 86400000}d / ${spanBefore / 86400000}d`);
   check('线上缩放切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+  check('线上缩放不会重建整页', await page.evaluate(() => window.__liveHero?.isConnected && window.__liveHero === document.querySelector('.hero-panel')));
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(300);
   check('桌面端无 JS 错误', errors.length === 0, errors.join(' | '));
