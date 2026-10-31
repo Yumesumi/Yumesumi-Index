@@ -39,6 +39,7 @@ const state = {
   summary: null,
   view: 'overview',
   range: '365',
+  window: null,
   query: '',
   sort: 'desc',
   year: 'all',
@@ -100,6 +101,16 @@ function currentView() {
   return VIEWS.includes(raw) ? raw : 'overview';
 }
 
+function commitChartWindow(window) {
+  if (!window) return;
+  state.window = { ...window };
+  state.range = 'custom';
+  state.historyLimit = 120;
+  renderView();
+}
+
+const chartHandlers = { onWindowCommit: commitChartWindow };
+
 function renderView() {
   const host = document.getElementById('view');
   if (state.loadError) {
@@ -116,9 +127,9 @@ function renderView() {
     refreshEnhancements(host);
     return;
   }
-  if (state.view === 'overview') renderOverview(host, state);
+  if (state.view === 'overview') renderOverview(host, state, chartHandlers);
   else if (state.view === 'journal') renderJournal(host, state);
-  else if (state.view === 'history') renderHistory(host, state);
+  else if (state.view === 'history') renderHistory(host, state, chartHandlers);
   else renderMethodology(host, state);
   refreshEnhancements(host);
 }
@@ -527,6 +538,7 @@ function bindEvents() {
     }
     if (action === 'range') {
       state.range = trigger.dataset.range;
+      state.window = null;
       state.historyLimit = 120;
       renderView();
     }

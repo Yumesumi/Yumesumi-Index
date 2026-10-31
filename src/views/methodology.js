@@ -62,6 +62,7 @@ export function renderMethodology(host, state) {
         <p>不满足关系的输入会被表单当场拒绝，不会被静默接受或悄悄改写。</p>
         <h4>缺失日期</h4>
         <p>相邻两条记录可以相隔好几天。没有记录的日期不会生成 K 线，日变化的比较对象是上一条真实记录。同一日期再次保存是<strong>更新</strong>，不是新增。</p>
+        <p>盘面时间轴按真实填写日期排布，没有记录的日期会留出时间间隔。可以用滚轮或双指缩放、拖拽平移，并在 7 天、30 天、90 天、180 天、1 年、3 年和成立来之间切换窗口。</p>
       </section>
 
       <section class="panel glass-soft prose-card reveal">

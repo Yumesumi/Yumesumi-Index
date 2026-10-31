@@ -121,25 +121,67 @@ try {
   check('桌面端无资源加载失败', watchPage.failed.length === 0, watchPage.failed.join(' | '));
   await capture(page, 'desktop-overview.png');
 
-  console.log('\n[概览 · 范围与指标]');
+  console.log('\n[概览 · 时间窗口与交互]');
+  const chartHost = page.locator('#overview-chart');
+  const readWindow = async () => ({
+    start: new Date(await chartHost.getAttribute('data-chart-start')),
+    end: new Date(await chartHost.getAttribute('data-chart-end')),
+    visible: Number(await chartHost.getAttribute('data-chart-visible')),
+  });
   await page.click('.seg-btn[data-range="all"]');
   await page.waitForTimeout(700);
-  check('全部范围渲染完整记录', (await page.locator('#overview-chart .candle-body').count()) === records.length);
-  check('全部范围可横向滚动', (await page.locator('#overview-chart .chart-shell.is-scrollable').count()) === 1);
-  check('图表初始定位到最新一根', await page.evaluate(() => {
-    const vp = document.querySelector('#overview-chart .chart-viewport');
-    return vp.scrollLeft + vp.clientWidth >= vp.scrollWidth - 4;
-  }));
-  await page.locator('#overview-chart .candle-hit').last().hover({ force: true });
+  await chartHost.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  check('成立来渲染完整记录', (await page.locator('#overview-chart .candle-body').count()) === records.length);
+  const allWindow = await readWindow();
+  check('成立来窗口覆盖首条记录', allWindow.start.toISOString().slice(0, 10) < records[0].date);
+  check('成立来窗口覆盖最新记录', allWindow.end.toISOString().slice(0, 10) > records.at(-1).date);
+  const allTicks = await page.locator('#overview-chart .chart-axis-label').allTextContents();
+  check('成立来时间轴含年份刻度', allTicks.some((t) => /^20\d\d$/.test(t)), allTicks.join(','));
+
+  const stageBox = async () => { await chartHost.scrollIntoViewIfNeeded(); await page.waitForTimeout(150); return page.locator('#overview-chart .chart-stage').boundingBox(); };
+  let box = await stageBox();
+  await page.mouse.move(box.x + box.width - 30, box.y + box.height / 2);
   await page.waitForTimeout(200);
   check('K 线悬停提示可见', await page.locator('#overview-chart .chart-tip').isVisible());
   check('悬停提示含 OHLC', (await page.locator('#overview-chart .chart-tip').innerText()).includes('开'));
   await page.mouse.move(0, 0);
+
+  await page.click('.seg-btn[data-range="7"]');
+  await page.waitForTimeout(600);
+  check('7 天窗口被选中', (await page.locator('.seg-btn[data-range="7"]').getAttribute('class')).includes('is-active'));
+  const weekWindow = await readWindow();
+  check('7 天窗口只显示近期记录', weekWindow.visible > 0 && weekWindow.visible < 6, String(weekWindow.visible));
+  check('7 天窗口跨度约 7 天',
+    (weekWindow.end - weekWindow.start) / 86400000 >= 6 && (weekWindow.end - weekWindow.start) / 86400000 <= 8,
+    String((weekWindow.end - weekWindow.start) / 86400000));
+
+  const beforeZoom = weekWindow.end - weekWindow.start;
+  box = await stageBox();
+  await page.mouse.move(box.x + box.width * 0.55, box.y + box.height / 2);
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(700);
+  const zoomedWindow = await readWindow();
+  check('滚轮缩放缩小时间窗口', (zoomedWindow.end - zoomedWindow.start) < beforeZoom,
+    `${(zoomedWindow.end - zoomedWindow.start) / 86400000}d / ${beforeZoom / 86400000}d`);
+  check('缩放后切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+
+  const beforePan = (await readWindow()).start.getTime();
+  box = await stageBox();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  const pannedWindow = await readWindow();
+  check('拖拽平移改变时间窗口', pannedWindow.start.getTime() !== beforePan);
+  check('平移后保持自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+
   await page.click('.seg-btn[data-range="90"]');
   await page.waitForTimeout(500);
   check('90 天档位被选中', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
   const candles90 = await page.locator('#overview-chart .candle-body').count();
-  check('90 天范围只保留近期记录', candles90 > 0 && candles90 < 30, String(candles90));
+  check('90 天范围只保留近期记录', candles90 > 0 && candles90 < 40, String(candles90));
   await page.click('[data-action="toggle-ma"]');
   await page.waitForTimeout(400);
   check('关闭 MA7 后均线消失', (await page.locator('#overview-chart .chart-ma').count()) === 0);
@@ -199,6 +241,22 @@ try {
   await page.click('[data-action="load-more-history"]');
   await page.waitForTimeout(400);
   check('行情表加载更多', (await page.locator('.data-table tbody tr').count()) === 240);
+
+  const historyChart = page.locator('#history-chart');
+  await historyChart.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
+  const historyBox = await page.locator('#history-chart .chart-stage').boundingBox();
+  await page.mouse.move(historyBox.x + historyBox.width * 0.55, historyBox.y + historyBox.height / 2);
+  await page.mouse.wheel(0, -320);
+  await page.waitForTimeout(750);
+  check('历史缩放切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+  const historyVisible = Number(await historyChart.getAttribute('data-chart-visible'));
+  check('行情表跟随缩放窗口', (await page.locator('.data-table tbody tr').count()) === Math.min(120, historyVisible),
+    `${await page.locator('.data-table tbody tr').count()} / ${historyVisible}`);
+  await page.click('.seg-btn[data-range="all"]');
+  await page.waitForTimeout(600);
+  await page.click('[data-action="load-more-history"]');
+  await page.waitForTimeout(400);
   await capture(page, 'desktop-history.png');
 
   /* ================= 说明 + 导出 ================= */
@@ -302,6 +360,47 @@ try {
     await mobile.evaluate(() => `${document.documentElement.scrollWidth} / ${window.innerWidth}`));
   check('移动端菜单按钮可见', await mobile.locator('.menu-btn').isVisible());
   check('移动端指数概览可见', await mobile.locator('.hero-value').isVisible());
+  await mobile.locator('#overview-chart').scrollIntoViewIfNeeded();
+  await mobile.waitForTimeout(300);
+  const mobileHost = mobile.locator('#overview-chart');
+  const mobileStart = await mobileHost.getAttribute('data-chart-start');
+  const mobileBox = await mobile.locator('#overview-chart .chart-stage').boundingBox();
+  const cdp = await mobileContext.newCDPSession(mobile);
+  const cx = mobileBox.x + mobileBox.width / 2;
+  const cy = mobileBox.y + mobileBox.height / 2;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx - 40, y: cy, id: 1 }] });
+  for (let i = 1; i <= 6; i += 1) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cx - 40 + i * 20, y: cy, id: 1 }] });
+    await mobile.waitForTimeout(30);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await mobile.waitForTimeout(800);
+  check('移动端单指拖拽平移', (await mobileHost.getAttribute('data-chart-start')) !== mobileStart);
+  check('移动端拖拽后为自定义窗口', (await mobile.locator('.seg-btn.is-active').innerText()).includes('自定义'));
+
+  await mobileHost.scrollIntoViewIfNeeded();
+  await mobile.waitForTimeout(250);
+  const pinchBefore = Date.parse(await mobileHost.getAttribute('data-chart-end')) - Date.parse(await mobileHost.getAttribute('data-chart-start'));
+  const pinchBox = await mobile.locator('#overview-chart .chart-stage').boundingBox();
+  const px = pinchBox.x + pinchBox.width / 2;
+  const py = pinchBox.y + pinchBox.height / 2;
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: px - 35, y: py, id: 1 }, { x: px + 35, y: py, id: 2 }],
+  });
+  for (let i = 1; i <= 6; i += 1) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: px - 35 - i * 10, y: py, id: 1 }, { x: px + 35 + i * 10, y: py, id: 2 }],
+    });
+    await mobile.waitForTimeout(30);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await mobile.waitForTimeout(800);
+  const pinchAfter = Date.parse(await mobileHost.getAttribute('data-chart-end')) - Date.parse(await mobileHost.getAttribute('data-chart-start'));
+  check('移动端双指缩放', pinchAfter < pinchBefore, `${pinchAfter / 86400000}d / ${pinchBefore / 86400000}d`);
+  await mobile.locator('.hero-value').scrollIntoViewIfNeeded();
+  await mobile.waitForTimeout(200);
   await capture(mobile, 'mobile-overview.png');
   await mobile.click('.menu-btn');
   await mobile.waitForTimeout(300);

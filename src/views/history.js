@@ -5,8 +5,11 @@ import { refreshEnhancements } from '../lib/ambience.js';
 import {
   directionClass, formatNumber, formatPct, formatSigned,
 } from '../lib/data.js';
-import { RANGES, filterByRange, rangeEmptyHint } from '../lib/selectors.js';
+import {
+  rangeEmptyHint, rangeLabel, recordsInWindow, resolveWindow,
+} from '../lib/selectors.js';
 import { emptyState } from '../components/ui.js';
+import { maButton, rangeButtons, rangeSummary } from '../components/chart-controls.js';
 import { icon } from '../components/icons.js';
 
 const PAGE_SIZE = 120;
@@ -20,12 +23,13 @@ function stat({ label, value, sub = '', tone = '' }) {
     </div>`;
 }
 
-export function renderHistory(host, state) {
-  const data = filterByRange(state.metrics, state.range);
+export function renderHistory(host, state, handlers = {}) {
+  const window = resolveWindow(state.metrics, state.range, state.window);
+  const data = recordsInWindow(state.metrics, window);
   const rows = [...data].reverse();
   if (!state.historyLimit) state.historyLimit = PAGE_SIZE;
   const visibleRows = rows.slice(0, state.historyLimit);
-  const rangeLabel = RANGES.find((r) => r.key === state.range)?.label ?? '全部';
+  const windowLabel = rangeLabel(state.range);
   const highs = data.map((m) => m.ohlc.high);
   const lows = data.map((m) => m.ohlc.low);
   const maxHigh = highs.length ? Math.max(...highs) : null;
@@ -37,7 +41,7 @@ export function renderHistory(host, state) {
       <p class="eyebrow">HISTORY · 行情</p>
       <div class="view-head-row">
         <h2>历史走势。</h2>
-        <p class="lede">K 线与行情表来自同一份记录。范围只筛选真实存在的记录，不会为空白日期补齐行情。</p>
+        <p class="lede">K 线与行情表来自同一份记录。时间窗口按真实填写日期计算，不会为空白日期补齐行情。</p>
       </div>
     </section>
 
@@ -46,13 +50,11 @@ export function renderHistory(host, state) {
         <div>
           <p class="eyebrow">PRICE HISTORY</p>
           <h3>历史 K 线</h3>
-          <p class="panel-sub">${data.length} 条记录 · ${rangeLabel}</p>
+          <p class="panel-sub">${rangeSummary(state, window, data)}</p>
         </div>
         <div class="chart-controls">
-          <div class="segmented" role="group" aria-label="时间范围">
-            ${RANGES.map((r) => `<button type="button" class="seg-btn ${state.range === r.key ? 'is-active' : ''}" data-action="range" data-range="${r.key}">${r.label}</button>`).join('')}
-          </div>
-          <button type="button" class="btn btn-sm ${state.showMA ? 'is-on' : ''}" data-action="toggle-ma" aria-pressed="${state.showMA}">MA7</button>
+          ${rangeButtons(state)}
+          ${maButton(state)}
           <button type="button" class="btn btn-sm" data-action="export-csv">${icon('download', 14)}<span>CSV</span></button>
         </div>
       </div>
@@ -61,7 +63,7 @@ export function renderHistory(host, state) {
         ${stat({ label: '区间最高', value: maxHigh == null ? '—' : formatNumber(maxHigh) })}
         ${stat({ label: '区间最低', value: minLow == null ? '—' : formatNumber(minLow) })}
         ${stat({ label: '最新收盘', value: last ? formatNumber(last.ohlc.close) : '—', tone: last ? directionClass(last.change) : '', sub: last ? formatPct(last.changePct) : '' })}
-        ${stat({ label: '区间记录', value: String(data.length), sub: rangeLabel })}
+        ${stat({ label: '区间记录', value: String(data.length), sub: windowLabel })}
       </div>
 
       <div class="chart-mount" id="history-chart"></div>
@@ -71,7 +73,7 @@ export function renderHistory(host, state) {
         <span><i class="legend-swatch base"></i>基准</span>
         <span><i class="legend-swatch ma"></i>MA7</span>
       </div>
-      <p class="chart-note">${icon('info', 13)} 纵轴跟随当前范围，基准在区间外时以边缘提示标出；数据量大时可以横向拖动查看更早的记录。</p>
+      <p class="chart-note">${icon('info', 13)} 时间轴按真实记录日期排布；滚轮或双指缩放，拖拽平移。纵轴跟随可视窗口，基准在区间外时以边缘提示标出。</p>
     </section>
 
     <section class="panel glass-soft reveal">
@@ -115,17 +117,19 @@ export function renderHistory(host, state) {
         </div>` : emptyState({
           eyebrow: 'EMPTY RANGE',
           title: '该时间范围内没有记录',
-          text: rangeEmptyHint(state.metrics) || '还没有正式记录。',
+          text: rangeEmptyHint(state.metrics, window) || '还没有正式记录。',
         })}
     </section>`;
 
   const chartHost = document.getElementById('history-chart');
   if (chartHost) {
-    renderKLine(chartHost, data, {
+    renderKLine(chartHost, state.metrics, {
       baseValue: state.meta.base_value,
       showMA: state.showMA,
-      emptyText: rangeEmptyHint(state.metrics) || '还没有正式记录，图表不会凭空生成数据。',
-      animate: true,
+      window,
+      animate: state.range !== 'custom',
+      emptyText: rangeEmptyHint(state.metrics, window) || '还没有正式记录，图表不会凭空生成数据。',
+      onWindowCommit: handlers.onWindowCommit,
     });
   }
 
@@ -133,7 +137,7 @@ export function renderHistory(host, state) {
   if (loadWrap) {
     loadWrap.addEventListener('click', () => {
       state.historyLimit += PAGE_SIZE;
-      renderHistory(host, state);
+      renderHistory(host, state, handlers);
       refreshEnhancements(host);
     });
   }

@@ -796,7 +796,7 @@ select {
   background: rgb(157 132 232 / 4%);
 }
 
-/* ---------- 图表 ---------- */
+/* ---------- 盘面图表 ---------- */
 
 .chart-mount {
   position: relative;
@@ -830,7 +830,7 @@ select {
 
 .chart-outside-label {
   position: absolute;
-  inset-block-start: 8px;
+  inset-block-start: 7px;
   inset-inline-start: 10px;
   z-index: 2;
   padding: 0.2rem 0.5rem;
@@ -843,32 +843,22 @@ select {
   pointer-events: none;
 }
 
-.chart-plot {
+.chart-stage {
   position: relative;
   flex: 1;
   min-width: 0;
-}
-
-.chart-viewport {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(157 132 232 / 26%) transparent;
+  overflow: hidden;
   cursor: crosshair;
-  overscroll-behavior-x: contain;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.chart-viewport::-webkit-scrollbar { height: 8px; }
-.chart-viewport::-webkit-scrollbar-track { background: transparent; }
-.chart-viewport::-webkit-scrollbar-thumb { background: rgb(157 132 232 / 22%); border: 2px solid transparent; background-clip: padding-box; }
-
-.chart-stage {
-  position: relative;
-}
+.chart-stage.is-dragging { cursor: grabbing; }
 
 .chart-stage svg {
   display: block;
-  touch-action: pan-x;
+  touch-action: none;
 }
 
 .chart-grid {
@@ -930,8 +920,6 @@ select {
   filter: drop-shadow(0 0 5px rgb(185 168 240 / 30%));
 }
 
-.candle-hit { fill: transparent; }
-
 .chart-crosshair {
   stroke: rgb(185 168 240 / 52%);
   stroke-width: 1;
@@ -942,6 +930,12 @@ select {
 }
 
 .chart-crosshair.is-visible { opacity: 1; }
+
+.chart-empty-text {
+  fill: var(--ys-text-faint);
+  font-family: var(--ys-font-sans);
+  font-size: 12px;
+}
 
 .chart-tip {
   position: absolute;
@@ -1007,47 +1001,6 @@ select {
 
 .tip-change span { opacity: 0.75; }
 
-.chart-fade {
-  position: absolute;
-  inset-block: 0;
-  inline-size: 2.2rem;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--ys-dur-base) var(--ys-ease-out);
-}
-
-.chart-fade--left {
-  inset-inline-start: 0;
-  background: linear-gradient(to right, rgb(8 7 16 / 92%), transparent);
-}
-
-.chart-fade--right {
-  inset-inline-end: 0;
-  background: linear-gradient(to left, rgb(8 7 16 / 92%), transparent);
-}
-
-.chart-shell.is-scrollable .chart-fade { opacity: 1; }
-.chart-shell.is-scrollable.at-start .chart-fade--left { opacity: 0; }
-.chart-shell.is-scrollable.at-end .chart-fade--right { opacity: 0; }
-
-.chart-scroll-hint {
-  position: absolute;
-  inset-block-end: 2.3rem;
-  inset-inline-end: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid var(--ys-border-subtle);
-  border-radius: var(--ys-radius-pill);
-  background: rgb(8 7 16 / 82%);
-  font-size: 0.58rem;
-  letter-spacing: 0.04em;
-  color: var(--ys-text-faint);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--ys-dur-base) var(--ys-ease-out);
-}
-
-.chart-shell.is-scrollable.at-end .chart-scroll-hint { opacity: 1; }
-
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1087,6 +1040,26 @@ select {
 
 .chart-empty { min-height: 18rem; align-content: center; }
 
+/*
+ * 盘面时间窗口使用 7 个预设；桌面允许换行，
+ * 移动端横向滚动，避免把控制区撑破。
+ */
+.segmented--ranges {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .chart-mount { min-height: 15rem; }
+  .chart-tip { min-width: 9.5rem; }
+  .chart-yaxis-label { inset-inline-end: 6px; font-size: 9.5px; }
+  .segmented--ranges {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .segmented--ranges::-webkit-scrollbar { display: none; }
+}
 /* ---------- 表格 ---------- */
 
 .table-wrap {
@@ -1214,7 +1187,6 @@ select {
   .quote-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .chart-mount { min-height: 15rem; }
   .chart-tip { min-width: 9.5rem; }
-  .chart-scroll-hint { display: none; }
   .chart-yaxis-label { inset-inline-end: 6px; font-size: 9.5px; }
   .data-table { min-width: 40rem; }
   .table-wrap--history { max-height: 60vh; }

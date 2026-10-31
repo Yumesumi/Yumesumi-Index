@@ -38,7 +38,7 @@ npm run preview   # 在 8099 端口预览 dist/
 │   ├── app.js                  # 状态、hash 路由、模态框、编辑与导入导出
 │   ├── lib/
 │   │   ├── data.js             # 数据加载、校验、指标计算、CSV/JSON 序列化
-│   │   ├── chart.js            # 原生 SVG K 线（固定 Y 轴、横向滚动、MA7）
+│   │   ├── chart.js            # 原生 SVG 盘面（日期时间轴、缩放拖拽、MA7）
 │   │   ├── richtext.js         # 日记正文的安全 Markdown 子集
 │   │   ├── selectors.js        # 范围筛选、搜索、年份归档
 │   │   └── ambience.js         # 星场、显现动效、滚动状态、玻璃倾斜
@@ -82,11 +82,11 @@ npm run preview   # 在 8099 端口预览 dist/
 
 K 线图使用原生 SVG，无图表库：
 
-- 蜡烛按记录序号等距排列，不按日历缩放，缺失日期不补造。
-- Y 轴固定在左侧，不随横向滚动移动。
-- 纵轴跟随当前时间范围自适应；基准线落在范围外时，用边缘提示标注「在区间上方/下方」。
-- 大范围数据横向滚动，默认定位到最新一根；移动端每根蜡烛至少 10px。
-- MA7 仅基于真实记录计算。
+- 时间轴按真实记录日期排布，缺失日期会留出时间间隔，但不补造 K 线。
+- 时间窗口锚定最后一条记录，提供 7 天 / 30 天 / 90 天 / 180 天 / 1 年 / 3 年 / 成立来。
+- 桌面端滚轮缩放，移动端双指缩放；鼠标左键或单指拖拽平移。窗口变化后会显示「自定义」。
+- Y 轴固定在左侧；纵轴跟随当前可视窗口自适应，基准线落在范围外时用边缘提示标注。
+- MA7 基于全部真实记录计算，窗口边缘保持连续。
 
 ---
 
@@ -255,9 +255,9 @@ close: 1086.42
 ```bash
 npm run check          # 数据层 72 项 + 日记流程 48 项 + 正文渲染 21 项 + 源数据检查
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
-npm run check:e2e      # 75 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
+npm run check:e2e      # 88 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
-npm run verify:production # 24 项线上检查（默认 https://index.yumesumi.cyou/）
+npm run verify:production # 26 项线上检查（默认 https://index.yumesumi.cyou/）
 ```
 
 `e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。
