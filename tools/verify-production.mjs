@@ -46,6 +46,13 @@ check('HTML 含环境星场', html.includes('id="ambience-stars"'));
 
 const records = await (await fetchRetry(`${liveUrl.origin}/data/records.json${cacheBust}`, { headers: { 'cache-control': 'no-cache' } })).json();
 check('线上数据可读取', Array.isArray(records) && records.length > 0, String(records.length));
+check('线上点位全部为整数', records.every((r) => ['open', 'high', 'low', 'close'].every((k) => Number.isInteger(r.ohlc[k]))));
+check('线上记录数为 3280', records.length === 3280, String(records.length));
+const lastSix = records.slice(-6).map((r, i) => {
+  const prev = records[records.length - 7 + i];
+  return (r.ohlc.close - prev.ohlc.close) / Math.abs(prev.ohlc.close);
+});
+check('线上最近 6 日连续跌超 10%', lastSix.every((rate) => rate < -0.1), lastSix.map((r) => `${(r * 100).toFixed(2)}%`).join(','));
 const cname = await (await fetchRetry(`${liveUrl.origin}/CNAME${cacheBust}`)).text();
 check('线上 CNAME 正确', cname.trim() === 'index.yumesumi.cyou', cname.trim());
 
