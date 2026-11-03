@@ -269,6 +269,8 @@ close: 1086
 
 站点不实现 GitHub API 写入、OAuth 或 Token，也不会声称网页操作已经改动仓库。
 
+**清除浏览器暂存：** 日记页顶部的暂存提示条和「说明 → 数据」都提供「清除浏览器暂存」。它只删除当前浏览器中 `ysi.` 前缀的 localStorage / sessionStorage（以及 YSI 命名的 Cache Storage），不会修改 `data/records.json`、GitHub 仓库或线上站点，也不会清除 Cookie 或普通 HTTP 缓存。
+
 ---
 
 ## 验证
@@ -276,9 +278,9 @@ close: 1086
 ```bash
 npm run check          # 数据层 74 项 + 日记流程 49 项 + 正文渲染 21 项 + 源数据检查
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
-npm run check:e2e      # 94 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
+npm run check:e2e      # 102 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
-npm run verify:production # 30 项线上检查（默认 https://index.yumesumi.cyou/）
+npm run verify:production # 31 项线上检查（默认 https://index.yumesumi.cyou/）
 ```
 
 `e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。

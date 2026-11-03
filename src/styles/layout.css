@@ -496,7 +496,14 @@ html.is-scrolled .topbar {
 
 .pending-text b { color: var(--ys-text); }
 .pending-hint { color: var(--ys-text-muted); }
-.pending-bar .btn { margin-inline-start: auto; }
+.pending-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-inline-start: auto;
+}
+
+.pending-actions .btn { margin-inline-start: 0; }
 
 /* ---------- 页脚 ---------- */
 
@@ -662,7 +669,7 @@ html.is-scrolled .topbar {
   .site-return-label { display: none; }
   .pending-bar { margin-inline: var(--ys-gutter); }
   .pending-hint { display: none; }
-  .pending-bar .btn { margin-inline-start: 0; }
+  .pending-actions { width: 100%; margin-inline-start: 0; justify-content: flex-end; flex-wrap: wrap; }
   .amb-grain { opacity: 0.035; }
   .amb-shooting { display: none; }
 }

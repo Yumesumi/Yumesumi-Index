@@ -6,7 +6,7 @@
 import {
   loadIndex, loadRecords, mergeRecords, computeMetrics, computeSummary,
   validateRecord, normalizeRecord, parseRecordsJSON, toCSV, toExportRecords,
-  formatNumber, formatSigned, directionClass, escapeHtml,
+  formatNumber, formatSigned, directionClass, escapeHtml, pendingDates,
   isValidDateString, assetUrl, isSafeImageSource,
 } from './lib/data.js';
 import { renderJournalBody } from './lib/richtext.js';
@@ -388,6 +388,83 @@ function openDetail(date) {
   });
 }
 
+/* ---------------- 浏览器本地数据 ---------------- */
+
+/**
+ * 只清除 YSI 自己写入浏览器的本地数据。
+ * 不碰 Cookie、HTTP 缓存或其他站点的 localStorage。
+ */
+async function clearLocalBrowserData() {
+  const removePrefixed = (storage) => {
+    try {
+      const keys = [];
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (key && (key === 'ysi' || key.startsWith('ysi.'))) keys.push(key);
+      }
+      keys.forEach((key) => storage.removeItem(key));
+    } catch { /* 本地存储不可用时忽略 */ }
+  };
+  removePrefixed(localStorage);
+  removePrefixed(sessionStorage);
+  try {
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.filter((name) => name.startsWith('ysi-')).map((name) => caches.delete(name)));
+    }
+  } catch { /* Cache API 不可用时忽略 */ }
+}
+
+async function openClearLocalDialog() {
+  const dates = pendingDates(state.pending);
+  if (!dates.length) {
+    await clearLocalBrowserData();
+    state.pending = {};
+    recompute();
+    render();
+    toast('当前浏览器没有暂存记录，已清理 YSI 本地数据。');
+    return;
+  }
+
+  const shown = [...dates].reverse().slice(0, 8);
+  const rows = shown.map((date) => {
+    const record = state.merged.find((item) => item.date === date);
+    return `<tr><td class="num">${date}</td><td>${escapeHtml(record?.title ?? '—')}</td></tr>`;
+  }).join('');
+  const more = dates.length > shown.length
+    ? `<tr><td colspan="2" class="muted center">… 以及更早的 ${dates.length - shown.length} 条</td></tr>`
+    : '';
+
+  const modal = openModal({
+    title: '清除浏览器暂存',
+    subtitle: 'LOCAL ONLY',
+    className: 'modal-wide',
+    body: `
+      <div class="notice">
+        将删除当前浏览器里的 <b>${dates.length}</b> 条暂存记录。
+        正式数据 <code>data/records.json</code>、GitHub 仓库与线上站点不会受到影响。此操作不可撤销。
+      </div>
+      <div class="table-wrap table-wrap--short">
+        <table class="data-table">
+          <thead><tr><th scope="col">日期</th><th scope="col">标题</th></tr></thead>
+          <tbody>${rows}${more}</tbody>
+        </table>
+      </div>`,
+    foot: `
+      <button type="button" class="btn" data-action="close-modal">取消</button>
+      <button type="button" class="btn btn-danger" id="do-clear-local">清除 ${dates.length} 条</button>`,
+  });
+
+  modal.querySelector('#do-clear-local').addEventListener('click', async () => {
+    await clearLocalBrowserData();
+    state.pending = {};
+    recompute();
+    closeModal();
+    render();
+    toast(`已清除 ${dates.length} 条浏览器暂存记录。正式数据未受影响。`);
+  });
+}
+
 /* ---------------- 导出 / 导入 ---------------- */
 
 function openExportDialog() {
@@ -526,6 +603,7 @@ function bindEvents() {
     if (action === 'export-json') { openExportDialog(); return; }
     if (action === 'export-csv') { exportCSV(); return; }
     if (action === 'import-json') { openImportDialog(); return; }
+    if (action === 'clear-local') { openClearLocalDialog(); return; }
     if (action === 'toggle-menu') { toggleMobileNav(); return; }
     if (action === 'close-menu') { closeMobileNav(); return; }
     if (action === 'retry') { window.location.reload(); return; }

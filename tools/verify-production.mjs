@@ -138,6 +138,13 @@ try {
   await page.waitForTimeout(700);
   check('直接访问 #/history 正常', (await page.locator('#history-chart svg').count()) === 1);
   check('行情表有数据', (await page.locator('.data-table tbody tr').count()) > 0);
+
+  console.log('
+[线上本地数据入口]');
+  await page.goto(`${pageUrl}/#/methodology`.replace(`${cacheBust}/`, `${cacheBust}`), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForSelector('.method-grid', { timeout: 30000 });
+  await page.waitForTimeout(400);
+  check('线上有清除浏览器暂存入口', (await page.locator('.method-grid [data-action="clear-local"]').count()) >= 1);
 } finally {
   await browser.close();
 }

@@ -56,7 +56,10 @@ export function renderChrome(state) {
       <span class="pending-dot" aria-hidden="true"></span>
       <span class="pending-text"><b>${pending.length}</b> 条记录只保存在当前浏览器，尚未写入仓库。</span>
       <span class="pending-hint">发布请走 journal 脚本或导出 JSON 后 git push。</span>
-      <button type="button" class="btn btn-sm" data-action="export-json">${icon('download', 14)}<span>导出发布</span></button>`;
+      <div class="pending-actions">
+        <button type="button" class="btn btn-sm" data-action="export-json">${icon('download', 14)}<span>导出发布</span></button>
+        <button type="button" class="btn btn-sm btn-danger" data-action="clear-local">${icon('trash', 14)}<span>清除暂存</span></button>
+      </div>`;
   } else {
     bar.hidden = true;
     bar.innerHTML = '';

@@ -79,7 +79,9 @@ export function renderMethodology(host, state) {
           <button type="button" class="btn" data-action="import-json">${icon('upload', 14)}<span>导入 JSON</span></button>
           <button type="button" class="btn" data-action="export-json">${icon('download', 14)}<span>导出 JSON</span></button>
           <button type="button" class="btn" data-action="export-csv">${icon('table', 14)}<span>导出 CSV</span></button>
+          <button type="button" class="btn btn-danger" data-action="clear-local">${icon('trash', 14)}<span>清除浏览器暂存</span></button>
         </div>
+        <p class="muted">清除只影响当前浏览器的 localStorage（仅 YSI 前缀数据），不会修改 data/records.json、GitHub 仓库或线上站点。</p>
       </section>
 
       <section class="panel glass-soft prose-card reveal">

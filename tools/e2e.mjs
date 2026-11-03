@@ -276,6 +276,7 @@ try {
   await goto(page, '#/methodology');
   check('说明页含基准规则', (await page.locator('.method-grid').innerText()).includes('基准点位'));
   check('说明页含发布流程', (await page.locator('.method-grid').innerText()).includes('GitHub Actions'));
+  check('说明页有清除暂存按钮', (await page.locator('.method-grid [data-action="clear-local"]').count()) >= 1);
   await page.click('.topbar [data-action="export-json"]');
   await page.waitForTimeout(300);
   check('导出弹窗打开', await page.locator('.modal').innerText().then((t) => t.includes('导出 JSON')));
@@ -311,9 +312,23 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
   check('刷新后暂存仍存在', await page.locator('#pending-bar').isVisible());
-  await page.evaluate(() => localStorage.removeItem('ysi.pending.v1'));
+
+  await page.click('#pending-bar [data-action="clear-local"]');
+  await page.waitForTimeout(300);
+  const clearText = await page.locator('.modal').innerText();
+  check('清除暂存弹窗打开', clearText.includes('清除浏览器暂存'));
+  check('清除说明强调不影响正式数据', clearText.includes('GitHub') && clearText.includes('不可撤销'));
+  await page.click('#do-clear-local');
+  await page.waitForTimeout(500);
+  check('清除后暂存提示消失', await page.locator('#pending-bar').isHidden());
+  check('清除后 localStorage 已删除', await page.evaluate(() => localStorage.getItem('ysi.pending.v1') === null));
+  check('清除后正式记录数不变', (await page.locator('#side-status-text').innerText()).includes(`${records.length} 条`));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
+  check('刷新后暂存保持清除状态', await page.locator('#pending-bar').isHidden());
+  await page.fill('#journal-search', '端到端测试记录');
+  await page.waitForTimeout(300);
+  check('清除后暂存记录不再出现', (await page.locator('.entry').count()) === 0);
 
   /* ================= 封面 / 插图 ================= */
   console.log('\n[日记 · 封面与插图]');

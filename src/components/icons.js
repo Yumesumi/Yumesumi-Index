@@ -19,6 +19,7 @@ const PATHS = {
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7"/>',
   trend: '<path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/>',
 };
 
 export function icon(name, size = 16, className = '') {
