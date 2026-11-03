@@ -5,6 +5,7 @@
      · 点位只使用整数，不使用小数
      · 2017-11-11 至 2026-10-28 每天一篇
      · 2026-10-29 至今天，每天收盘跌幅超过 10%
+     · 2026-11-04 梦澄集团破产，指数收于 -30000
      · 只记录指数变化，不写生活与情绪
 
    用法：
@@ -30,6 +31,14 @@ const START_DATE = '2017-11-11';
 const HISTORY_END = '2026-10-28';
 const CRASH_START = '2026-10-29';
 const CRASH_FACTOR = 1.105;
+const EVENT_END = '2026-11-04';
+const EVENT_DAYS = {
+  '2026-11-04': {
+    close: -30000,
+    title: '梦澄集团破产：指数直落 -30000',
+    body: '梦澄集团破产的消息冲击市场，指数单日重挫。',
+  },
+};
 const PEAK_CLOSE = 36741;
 
 function todayISO() {
@@ -180,17 +189,25 @@ function buildHistorySeries() {
 }
 
 function buildCrashSeries(startClose) {
-  const dates = eachDay(CRASH_START, TODAY);
+  const end = TODAY > EVENT_END ? TODAY : EVENT_END;
+  const dates = eachDay(CRASH_START, end);
   const series = [];
   let prev = startClose;
 
   dates.forEach((date, index) => {
-    const close = Math.floor(prev * CRASH_FACTOR);
+    const event = EVENT_DAYS[date];
+    const close = event ? event.close : Math.floor(prev * CRASH_FACTOR);
     const rate = (close - prev) / Math.abs(prev);
     if (rate > -0.1) {
       throw new Error(`跌幅不足 10%：${date} ${prev} -> ${close}`);
     }
-    series.push({ date, close, prevClose: prev, crashIndex: index + 1 });
+    series.push({
+      date,
+      close,
+      prevClose: prev,
+      crashIndex: index + 1,
+      event,
+    });
     prev = close;
   });
 
@@ -237,6 +254,7 @@ function buildCrashOHLC(entry) {
 /* ---------------- 标题与正文 ---------------- */
 
 function makeTitle(date, ohlc, prevClose, index, total, ctx) {
+  if (ctx.event?.title) return ctx.event.title;
   if (ctx.crash) {
     if (index === total - 1) return '最新一期：连续下跌仍在延续';
     return `连续下跌：第 ${ctx.crashIndex} 日跌幅超 10%`;
@@ -277,7 +295,7 @@ function makeTitle(date, ohlc, prevClose, index, total, ctx) {
   return belowBase ? `${waterMark}·盘整` : `${phase}·窄幅整理`;
 }
 
-function makeBody(date, ohlc, isCrash) {
+function makeBody(date, ohlc, isCrash, event) {
   const year = Number(date.slice(0, 4));
   let context;
   if (year <= 2019) context = '区间在震荡中逐步抬高，波动幅度较大。';
@@ -290,6 +308,7 @@ function makeBody(date, ohlc, isCrash) {
     `本日记录：${date}。`,
     `开 ${ohlc.open}，高 ${ohlc.high}，低 ${ohlc.low}，收 ${ohlc.close}。`,
     context,
+    ...(event?.body ? [event.body] : []),
     ...(isCrash ? ['当日跌幅超过 10%。'] : []),
     '本日仅记录指数变化。',
   ].join('\n');
@@ -297,7 +316,7 @@ function makeBody(date, ohlc, isCrash) {
 
 function journalContent(date, ohlc, prevClose, index, total, ctx) {
   const title = makeTitle(date, ohlc, prevClose, index, total, ctx);
-  const body = makeBody(date, ohlc, ctx.crash);
+  const body = makeBody(date, ohlc, ctx.crash, ctx.event);
   return `---\ntitle:${title}\nopen:${ohlc.open}\nhigh:${ohlc.high}\nlow:${ohlc.low}\nclose:${ohlc.close}\n---\n${body}\n`;
 }
 
@@ -330,6 +349,7 @@ entries.forEach((entry, index) => {
     streak: sign < 0 ? streak : 0,
     crash: entry.crash,
     crashIndex: entry.crashIndex,
+    event: entry.event,
   };
 });
 

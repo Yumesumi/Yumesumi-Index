@@ -367,8 +367,15 @@ export function renderKLine(host, metrics, options = {}) {
     }
 
     /* ---- 日期刻度 ---- */
-    const ticks = timeTicks(start, end, plotW);
     const latestRecord = all[all.length - 1];
+    const ticks = timeTicks(start, end, plotW).filter((tick) => {
+      // 窗口尾部有 1 天留白；不要把留白日期画成时间刻度
+      if (latestRecord.ms >= start && latestRecord.ms <= end) {
+        const delta = tick.ms - latestRecord.ms;
+        if (delta > 0 && delta <= 2 * DAY_MS) return false;
+      }
+      return true;
+    });
     if (latestRecord.ms >= start && latestRecord.ms <= end) {
       const latestX = x(latestRecord.ms);
       const lastTickX = ticks.length ? x(ticks[ticks.length - 1].ms) : -Infinity;
