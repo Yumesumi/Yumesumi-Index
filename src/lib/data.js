@@ -37,7 +37,7 @@ export function daysBetween(fromDate, toDate) {
   return Math.round((dateToMs(toDate) - dateToMs(fromDate)) / 86400000);
 }
 
-export function formatNumber(value, digits = 2) {
+export function formatNumber(value, digits = 0) {
   if (!Number.isFinite(value)) return '—';
   return value.toLocaleString('zh-CN', {
     minimumFractionDigits: digits,
@@ -45,7 +45,7 @@ export function formatNumber(value, digits = 2) {
   });
 }
 
-export function formatSigned(value, digits = 2) {
+export function formatSigned(value, digits = 0) {
   if (!Number.isFinite(value)) return '—';
   const sign = value > 0 ? '+' : value < 0 ? '−' : '';
   return `${sign}${formatNumber(Math.abs(value), digits)}`;
@@ -140,6 +140,8 @@ export function validateOHLC(ohlc) {
       errors.push(`${names[key]}尚未填写`);
     } else if (!Number.isFinite(num)) {
       errors.push(`${names[key]}必须是有效数字`);
+    } else if (!Number.isInteger(num)) {
+      errors.push(`${names[key]}必须是整数`);
     } else {
       values[key] = num;
     }
@@ -383,7 +385,7 @@ export function toCSV(records, baseValue = BASE_VALUE) {
     r.ohlc.high,
     r.ohlc.low,
     r.ohlc.close,
-    r.change.toFixed(2),
+    String(r.change),
     // 百分比在没有可比基数时为 null，写出空单元格而不是 0.00
     Number.isFinite(r.changePct) ? r.changePct.toFixed(2) : '',
     Number.isFinite(r.cumPct) ? r.cumPct.toFixed(2) : '',

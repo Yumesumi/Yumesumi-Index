@@ -99,14 +99,14 @@ try {
   await goto(page);
 
   check('页面标题正确', (await page.title()).includes('梦澄指数'));
-  check('Hero 当前点位与最新收盘一致', (await page.locator('.hero-value').innerText()).includes('12,000.00'));
+  check('Hero 当前点位与最新收盘一致', (await page.locator('.hero-value').innerText()).includes(Number(last.ohlc.close).toLocaleString('zh-CN', { maximumFractionDigits: 0 })));
   check('侧栏记录数与数据一致', (await page.locator('#side-status-text').innerText()).includes(`${records.length} 条`));
   check('顶栏返回主站按钮可见', await page.locator('.site-return').isVisible());
   check('返回主站地址正确', (await page.locator('.site-return').getAttribute('href')) === 'https://yumesumi.cyou/');
   check('侧栏返回主站按钮可见', await page.locator('.sidebar-return').isVisible());
-  check('默认范围为 1 年', (await page.locator('.seg-btn[data-range="365"]').getAttribute('class')).includes('is-active'));
+  check('默认范围为 90 天', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
   check('K 线 SVG 已绘制', (await page.locator('#overview-chart svg').count()) === 1);
-  check('K 线已渲染', (await page.locator('#overview-chart .candle-body').count()) > 0);
+  check('K 线已渲染', Number(await page.locator('#overview-chart').getAttribute('data-chart-visible')) > 0);
   check('MA7 已绘制', (await page.locator('#overview-chart .chart-ma').count()) === 1);
   check('Y 轴标签固定在图表左侧', (await page.locator('#overview-chart .chart-yaxis-label').count()) >= 3);
   check('MiSans 字体已加载', await page.evaluate(async () => {
@@ -132,7 +132,7 @@ try {
   await page.waitForTimeout(700);
   await chartHost.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
-  check('成立来渲染完整记录', (await page.locator('#overview-chart .candle-body').count()) === records.length);
+  check('成立来渲染完整记录', Number(await page.locator('#overview-chart').getAttribute('data-chart-visible')) === records.length);
   const allWindow = await readWindow();
   check('成立来窗口覆盖首条记录', allWindow.start.toISOString().slice(0, 10) < records[0].date);
   check('成立来窗口覆盖最新记录', allWindow.end.toISOString().slice(0, 10) > records.at(-1).date);
@@ -153,7 +153,7 @@ try {
   check('预设窗口不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.hero-panel')));
   check('7 天窗口被选中', (await page.locator('.seg-btn[data-range="7"]').getAttribute('class')).includes('is-active'));
   const weekWindow = await readWindow();
-  check('7 天窗口只显示近期记录', weekWindow.visible > 0 && weekWindow.visible < 6, String(weekWindow.visible));
+  check('7 天窗口只显示近期记录', weekWindow.visible >= 6 && weekWindow.visible <= 9, String(weekWindow.visible));
   check('7 天窗口跨度约 7 天',
     (weekWindow.end - weekWindow.start) / 86400000 >= 6 && (weekWindow.end - weekWindow.start) / 86400000 <= 8,
     String((weekWindow.end - weekWindow.start) / 86400000));
@@ -189,8 +189,8 @@ try {
   await page.click('.seg-btn[data-range="90"]');
   await page.waitForTimeout(500);
   check('90 天档位被选中', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
-  const candles90 = await page.locator('#overview-chart .candle-body').count();
-  check('90 天范围只保留近期记录', candles90 > 0 && candles90 < 40, String(candles90));
+  const visible90 = Number(await page.locator('#overview-chart').getAttribute('data-chart-visible'));
+  check('90 天范围只保留近期记录', visible90 >= 85 && visible90 <= 95, String(visible90));
   await page.click('[data-action="toggle-ma"]');
   await page.waitForTimeout(400);
   check('关闭 MA7 后均线消失', (await page.locator('#overview-chart .chart-ma').count()) === 0);
@@ -246,7 +246,7 @@ try {
     String(await page.locator('.data-table tbody tr').count()));
   const firstRow = await page.locator('.data-table tbody tr').first().locator('td').allTextContents();
   check('行情表首行是最新日期', firstRow[0].includes(last.date), firstRow[0]);
-  check('行情表首行收盘正确', firstRow[4].replaceAll(',', '') === Number(last.ohlc.close).toFixed(2),
+  check('行情表首行收盘正确', firstRow[4].replaceAll(',', '').trim() === String(last.ohlc.close),
     `${firstRow[4]} / ${last.ohlc.close}`);
   await page.click('[data-action="load-more-history"]');
   await page.waitForTimeout(400);

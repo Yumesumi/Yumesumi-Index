@@ -28,10 +28,10 @@ mood: 平静 · 认真
 energy: 7
 tags: 生活, 自我观察
 cover: images/journal/2026-10-01.webp
-open: 1000.00
-high: 1088.20
-low: 972.50
-close: 1086.42
+open: 1000
+high: 1088
+low: 972
+close: 1086
 ---
 
 今天写了一些东西。
@@ -49,7 +49,7 @@ console.log('\n[解析头部与正文]');
   check('标签内容正确', e.record.tags[0] === '生活' && e.record.tags[1] === '自我观察');
   check('正文正确', e.record.body === '今天写了一些东西。', JSON.stringify(e.record.body));
   check('封面解析正确', e.record.cover === 'images/journal/2026-10-01.webp', e.record.cover);
-  check('OHLC 四个值都解析到', e.record.ohlc.open === 1000 && e.record.ohlc.close === 1086.42);
+  check('OHLC 四个值都解析到', e.record.ohlc.open === 1000 && e.record.ohlc.close === 1086);
 }
 
 console.log('\n[无头部：正文即全部]');
@@ -293,6 +293,22 @@ ${body}
 `));
   check('正文完整保留（含空行与标点）', e.record.body === body.trim(), JSON.stringify(e.record.body));
   check('不因生成摘要而丢失内容', e.record.body.includes('第三段。'));
+}
+
+console.log('\n[整数点位]');
+{
+  const e = parseJournalFile(write(`---
+title: 小数收盘
+open: 1000
+high: 1100
+low: 900
+close: 1086.5
+---
+
+正文。
+`));
+  const { errors } = resolveRecord(e, 1000);
+  check('小数 close 被拒绝', errors.some((x) => x.includes('整数')), JSON.stringify(errors));
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

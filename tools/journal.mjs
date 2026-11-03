@@ -390,7 +390,8 @@ close:
 > 可选：mood、energy（0–10）、tags（逗号分隔）、cover（封面图片路径）。
 > open 留空则取上一条记录的收盘价；high 留空则取 max(open, close)；
 > low 留空则取 min(open, close)。
-> 上一条的收盘价是 ${openDefault.toFixed(2)}，可以直接填进 open。
+> 上一条的收盘价是 ${openDefault}，可以直接填进 open。
+> 所有点位只接受整数，不能填写小数。
 > 封面与正文插图放在 public/images/journal/，建议 WebP、宽度 ≤1600px。
 >
 > 日期以文件名为准。修改这个文件后运行：
@@ -400,7 +401,7 @@ close:
 
   fs.writeFileSync(file, template, 'utf-8');
   ok(`已创建 journal/${date}.md`);
-  info(`默认开盘价 ${openDefault.toFixed(2)}（取自上一条收盘价）`);
+  info(`默认开盘价 ${openDefault}（取自上一条收盘价）`);
   info('写完后运行：node tools/journal.mjs commit');
 }
 

@@ -72,7 +72,6 @@ function niceTicks(min, max, count = 5) {
   let step;
   if (normalized <= 1) step = magnitude;
   else if (normalized <= 2) step = 2 * magnitude;
-  else if (normalized <= 2.5) step = 2.5 * magnitude;
   else if (normalized <= 5) step = 5 * magnitude;
   else step = 10 * magnitude;
   const ticks = [];
@@ -324,7 +323,7 @@ export function renderKLine(host, metrics, options = {}) {
       const label = document.createElement('span');
       label.className = 'chart-yaxis-label';
       label.style.top = `${ty}px`;
-      label.textContent = formatNumber(tick, tick % 1 === 0 ? 0 : 2);
+      label.textContent = formatNumber(tick, 0);
       axis.append(label);
     }
 
@@ -394,23 +393,35 @@ export function renderKLine(host, metrics, options = {}) {
       svg.append(text);
     }
 
-    /* ---- 蜡烛 ---- */
+    /* ---- 蜡烛：按涨跌方向合并为 path，日频长序列也保持轻量 ---- */
     const slot = plotW / Math.max(1, visibleItems.length);
     const candleWidth = Math.max(2, Math.min(13, slot * 0.55));
+    const paths = {
+      up: { wick: [], body: [] },
+      down: { wick: [], body: [] },
+      flat: { wick: [], body: [] },
+    };
+    const coord = (value) => Math.round(value * 10) / 10;
     for (const m of visibleItems) {
       const cx = x(m.ms);
       const dir = directionClass(m.change);
-      svg.append(el('line', {
-        x1: cx, x2: cx, y1: y(m.ohlc.high), y2: y(m.ohlc.low),
-        class: `candle-wick ${dir}`,
-      }));
-      const bodyTop = y(Math.max(m.ohlc.open, m.ohlc.close));
-      const bodyH = Math.max(1, Math.abs(y(m.ohlc.open) - y(m.ohlc.close)));
-      svg.append(el('rect', {
-        x: cx - candleWidth / 2, y: bodyTop, width: candleWidth, height: bodyH,
-        class: `candle-body ${dir}`, rx: 0.5,
-      }));
+      paths[dir].wick.push(`M${coord(cx)} ${coord(y(m.ohlc.high))}V${coord(y(m.ohlc.low))}`);
+      const top = y(Math.max(m.ohlc.open, m.ohlc.close));
+      const bottom = top + Math.max(1, Math.abs(y(m.ohlc.open) - y(m.ohlc.close)));
+      const left = coord(cx - candleWidth / 2);
+      const right = coord(cx + candleWidth / 2);
+      paths[dir].body.push(`M${left} ${coord(top)}H${right}V${coord(bottom)}H${left}Z`);
     }
+    const candleGroup = el('g', { class: 'chart-candles' });
+    for (const dir of ['up', 'down', 'flat']) {
+      if (paths[dir].wick.length) {
+        candleGroup.append(el('path', { d: paths[dir].wick.join(''), class: `candle-wick ${dir}` }));
+      }
+      if (paths[dir].body.length) {
+        candleGroup.append(el('path', { d: paths[dir].body.join(''), class: `candle-body ${dir}` }));
+      }
+    }
+    svg.append(candleGroup);
 
     /* ---- MA7：基于全部记录计算，窗口边缘保持连续 ---- */
     if (showMA && all.length >= 7 && visibleItems.length) {

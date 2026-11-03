@@ -76,9 +76,9 @@ try {
   await page.waitForSelector('#overview-chart .chart-stage', { timeout: 30000 });
   await page.waitForTimeout(900);
   check('页面标题正确', (await page.title()).includes('梦澄指数'));
-  check('最新点位已渲染', (await page.locator('.hero-value').innerText()).includes(Number(records.at(-1).ohlc.close).toLocaleString('zh-CN', { minimumFractionDigits: 2 })));
+  check('最新点位已渲染', (await page.locator('.hero-value').innerText()).includes(Number(records.at(-1).ohlc.close).toLocaleString('zh-CN', { maximumFractionDigits: 0 })));
   check('记录数与线上数据一致', (await page.locator('#side-status-text').innerText()).includes(`${records.length} 条`));
-  check('K 线已绘制', (await page.locator('#overview-chart .candle-body').count()) > 0);
+  check('K 线已绘制', Number(await page.locator('#overview-chart').getAttribute('data-chart-visible')) > 0);
   check('MiSans 已加载', await page.evaluate(async () => { await document.fonts.ready; return document.fonts.check('16px MiSans'); }));
   check('返回主站按钮可用', (await page.locator('.site-return').getAttribute('href')) === 'https://yumesumi.cyou/');
   const liveChart = page.locator('#overview-chart');

@@ -902,7 +902,7 @@ select {
 .chart-lastline-label.down { fill: var(--ys-down); }
 .chart-lastline-label.flat { fill: var(--ys-flat); }
 
-.candle-wick { stroke-width: 1; opacity: 0.82; }
+.candle-wick { fill: none; stroke-width: 1; opacity: 0.82; }
 .candle-wick.up { stroke: var(--ys-up); }
 .candle-wick.down { stroke: var(--ys-down); }
 .candle-wick.flat { stroke: var(--ys-flat); }

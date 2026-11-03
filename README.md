@@ -141,7 +141,7 @@ Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import
   "symbol": "YSI",
   "base_value": 0,
   "base_date": "2017-11-11",
-  "frequency": "weekly",
+  "frequency": "daily",
   "data_mode": "manual"
 }
 ```
@@ -162,12 +162,12 @@ Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import
     "energy": 7,
     "tags": ["生活", "自我观察"],
     "cover": "images/journal/2026-10-27.webp",
-    "ohlc": { "open": 1074.06, "high": 1088.20, "low": 1072.50, "close": 1086.42 }
+    "ohlc": { "open": 1074, "high": 1088, "low": 1072, "close": 1086 }
   }
 ]
 ```
 
-`cover` 可选；没有封面时不写这个字段。数值必须是 JSON 数字。日期使用 `YYYY-MM-DD`。
+`cover` 可选；没有封面时不写这个字段。OHLC 数值必须是 JSON 整数，不能使用小数。日期使用 `YYYY-MM-DD`。
 
 ### 指数规则
 
@@ -180,7 +180,27 @@ Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import
 - 第一条记录以基准点位作为比较对象。
 - 相邻记录可以相隔数天；中间没有记录的日期不会生成 K 线。
 - 点位可以是负数；涨跌幅分母取前收绝对值，保证符号与涨跌额一致。前收为 0 时涨跌幅显示「—」。
+- 点位只接受整数，不能填写小数。
 - OHLC 必须满足 `high >= open`、`high >= close`、`low <= open`、`low <= close`，否则拒绝保存。
+
+---
+
+## 历史序列
+
+当前 `journal/` 中的历史序列由 `tools/gen-history.mjs` 生成，为**日频**：
+
+- 2017-11-11 至 2026-10-28 每天一条，整数点位。
+- 2026-10-29 至 2026-11-03 连续 6 天每日收盘跌幅超过 10%。
+- 共 3,280 条记录；`data/index.json` 的频率为 `daily`。
+
+重新生成会覆盖 `journal/` 下所有日期文件，请先确认没有需要保留的手写日记：
+
+```bash
+node tools/gen-history.mjs --stats   # 查看数量、极值与连续跌幅
+node tools/gen-history.mjs --dry     # 只打印计划
+node tools/gen-history.mjs           # 写入 journal/
+node tools/journal.mjs sync          # 合并进 data/records.json
+```
 
 ---
 
@@ -206,10 +226,10 @@ mood: 平静 · 认真
 energy: 7
 tags: 生活, 自我观察
 cover: images/journal/2026-10-27.webp
-open: 1074.06
-high: 1088.20
-low: 1072.50
-close: 1086.42
+open: 1074
+high: 1088
+low: 1072
+close: 1086
 ---
 
 正文支持一个收窄的 Markdown 子集。
@@ -254,7 +274,7 @@ close: 1086.42
 ## 验证
 
 ```bash
-npm run check          # 数据层 72 项 + 日记流程 48 项 + 正文渲染 21 项 + 源数据检查
+npm run check          # 数据层 74 项 + 日记流程 49 项 + 正文渲染 21 项 + 源数据检查
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
 npm run check:e2e      # 94 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）

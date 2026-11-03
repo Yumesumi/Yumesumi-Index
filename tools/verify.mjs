@@ -39,8 +39,12 @@ check('high == low == open == close 合法（平盘）',
 check('缺 ohlc 被拒', validateRecord({ date: '2026-10-27', title: 't', body: 'b' }).length > 0);
 check('空标题被拒', validateRecord({ ...base, title: '  ' }).length > 0);
 check('非法日期被拒', validateRecord({ ...base, date: '2026-02-30' }).length > 0);
-check('字符串数字被接受（表单输入）',
+check('字符串整数被接受（表单输入）',
   validateRecord({ ...base, ohlc: { open: '100', high: '110', low: '90', close: '105' } }).length === 0);
+check('小数开盘价被拒',
+  validateRecord({ ...base, ohlc: { open: 100.5, high: 110, low: 90, close: 105 } }).length > 0);
+check('小数收盘价被拒',
+  validateRecord({ ...base, ohlc: { open: 100, high: 110, low: 90, close: 105.25 } }).length > 0);
 
 console.log('\n[指标计算]');
 const recs = [
@@ -82,7 +86,7 @@ const csv = toCSV(merged, 1000);
 check('CSV 含 BOM', csv.charCodeAt(0) === 0xFEFF);
 check('CSV 含表头', csv.includes('日期') && csv.includes('收盘'));
 check('CSV 行数正确', csv.trim().split('\r\n').length === 4);
-const tricky = [{ date: '2026-10-20', title: '含"引号",逗号\n和换行', body: 'b', mood: '', energy: null, tags: [], ohlc: { open: 1, high: 2, low: 0.5, close: 1.5 } }];
+const tricky = [{ date: '2026-10-20', title: '含"引号",逗号\n和换行', body: 'b', mood: '', energy: null, tags: [], ohlc: { open: 1, high: 2, low: 0, close: 2 } }];
 const csv2 = toCSV(tricky, 1000);
 check('CSV 正确转义 引号/逗号/换行', csv2.includes('"含""引号"",逗号\n和换行"'));
 
@@ -161,8 +165,8 @@ console.log('\n[负数点位]');
 console.log('\n[JSON 导入校验]');check('非法 JSON 被拒', parseRecordsJSON('{bad').ok === false);
 check('根节点非数组被拒', parseRecordsJSON('{"a":1}').ok === false);
 check('重复日期被拒', parseRecordsJSON(JSON.stringify([
-  { date: '2026-10-20', title: 'a', body: 'a', ohlc: { open: 1, high: 2, low: 0.5, close: 1.5 } },
-  { date: '2026-10-20', title: 'b', body: 'b', ohlc: { open: 1, high: 2, low: 0.5, close: 1.5 } },
+  { date: '2026-10-20', title: 'a', body: 'a', ohlc: { open: 1, high: 2, low: 0, close: 2 } },
+  { date: '2026-10-20', title: 'b', body: 'b', ohlc: { open: 1, high: 2, low: 0, close: 2 } },
 ])).ok === false);
 check('OHLC 非法被拒', parseRecordsJSON(JSON.stringify([
   { date: '2026-10-20', title: 'a', body: 'a', ohlc: { open: 10, high: 5, low: 1, close: 2 } },
@@ -170,10 +174,10 @@ check('OHLC 非法被拒', parseRecordsJSON(JSON.stringify([
 check('空数组视为合法', parseRecordsJSON('[]').ok === true);
 
 console.log('\n[格式化]');
-check('数字格式化', formatNumber(1234.5) === '1,234.50');
+check('整数格式化', formatNumber(1234) === '1,234');
 check('正数带 +', formatPct(1.5) === '+1.50%');
-check('负数带 −', formatSigned(-2.5) === '−2.50');
-check('零不加号', formatSigned(0) === '0.00');
+check('负数带 −', formatSigned(-2) === '−2');
+check('零不加号', formatSigned(0) === '0');
 
 console.log('\n[空数据健壮性]');
 check('空数组计算不崩', computeMetrics([], 1000).length === 0);

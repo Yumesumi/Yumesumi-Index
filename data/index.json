@@ -4,6 +4,6 @@
   "symbol": "YSI",
   "base_value": 0,
   "base_date": "2017-11-11",
-  "frequency": "weekly",
+  "frequency": "daily",
   "data_mode": "manual"
 }

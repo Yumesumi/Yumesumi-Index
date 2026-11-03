@@ -38,7 +38,7 @@ const state = {
   metrics: [],
   summary: null,
   view: 'overview',
-  range: '365',
+  range: '90',
   window: null,
   query: '',
   sort: 'desc',
@@ -214,25 +214,25 @@ function openEditor(date) {
         </div>
 
         <div class="form-section">
-          <p class="form-section-title">03 · 行情</p>
+          <p class="form-section-title">03 · 行情（只接受整数）</p>
           <div class="form-grid">
             <div class="form-row">
               <label for="f-open">开盘价 <span class="req">*</span></label>
-              <input class="field-input num" type="number" id="f-open" step="0.01" value="${defOpen}" required>
-              <span class="field-hint">默认上一条收盘价</span>
+              <input class="field-input num" type="number" id="f-open" step="1" value="${defOpen}" required>
+              <span class="field-hint">默认上一条收盘价，必须是整数</span>
             </div>
             <div class="form-row">
               <label for="f-high">最高价 <span class="req">*</span></label>
-              <input class="field-input num" type="number" id="f-high" step="0.01" value="${defHigh}" required>
+              <input class="field-input num" type="number" id="f-high" step="1" value="${defHigh}" required>
             </div>
             <div class="form-row">
               <label for="f-low">最低价 <span class="req">*</span></label>
-              <input class="field-input num" type="number" id="f-low" step="0.01" value="${defLow}" required>
+              <input class="field-input num" type="number" id="f-low" step="1" value="${defLow}" required>
             </div>
             <div class="form-row">
               <label for="f-close">收盘价 <span class="req">*</span></label>
-              <input class="field-input num" type="number" id="f-close" step="0.01" value="${defClose}" required>
-              <span class="field-hint">落笔时的状态</span>
+              <input class="field-input num" type="number" id="f-close" step="1" value="${defClose}" required>
+              <span class="field-hint">落笔时的状态，必须是整数</span>
             </div>
           </div>
           <div class="ohlc-preview" id="ohlc-preview"></div>
@@ -281,8 +281,8 @@ function openEditor(date) {
     const o = num(f.open);
     const c = num(f.close);
     if (o === null || c === null) return;
-    if (!touched.high) f.high.value = Math.max(o, c).toFixed(2);
-    if (!touched.low) f.low.value = Math.min(o, c).toFixed(2);
+    if (!touched.high) f.high.value = String(Math.max(o, c));
+    if (!touched.low) f.low.value = String(Math.min(o, c));
   }
 
   function updatePreview() {
@@ -328,7 +328,7 @@ function openEditor(date) {
     if (!isValidDateString(f.date.value)) return;
     touched.high = false;
     touched.low = false;
-    f.open.value = previousClose(f.date.value).toFixed(2);
+    f.open.value = String(previousClose(f.date.value));
     syncDefaults();
     updatePreview();
     const dup = state.merged.find((r) => r.date === f.date.value);

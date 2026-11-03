@@ -1,19 +1,21 @@
 /* =========================================================
-   tools/gen-history.mjs — 生成梦澄指数的历史周记序列
+   tools/gen-history.mjs — 生成梦澄指数的日频历史序列
 
-   按既定的走势描述，生成 2017-11-11 至今日的日记文件：
-     · 常规区间每周一篇
-     · 关键日期前后逐日生成（见 EXTRA_DAYS）
+   数据规则：
+     · 点位只使用整数，不使用小数
+     · 2017-11-11 至 2026-10-28 每天一篇
+     · 2026-10-29 至今天，每天收盘跌幅超过 10%
      · 只记录指数变化，不写生活与情绪
 
    用法：
-     node tools/gen-history.mjs            生成日记文件
-     node tools/gen-history.mjs --dry      只打印计划，不写文件
-     node tools/gen-history.mjs --stats    打印走势统计
+     node tools/gen-history.mjs            写入 journal/ 日频文件
+     node tools/gen-history.mjs --dry      只打印计划
+     node tools/gen-history.mjs --stats    打印统计
+     node tools/gen-history.mjs --dump     打印全部日期与收盘
 
-   曲线构造：以 ANCHORS 为控制点分段插值，再用带种子的伪随机
-   噪声叠加，形成自然的波动。所有随机都带固定种子，重复运行
-   结果完全一致，便于复现与审阅。
+   曲线构造：以 ANCHORS 为控制点按日线性插值，再叠加带种子的
+   日级噪声；噪声在每个区间两端收敛到 0，锚点日期取精确整数。
+   固定随机种子，重复运行结果一致。
    ========================================================= */
 
 import fs from 'node:fs';
@@ -25,14 +27,25 @@ const REPO = path.resolve(HERE, '..');
 const JOURNAL_DIR = path.join(REPO, 'journal');
 
 const START_DATE = '2017-11-11';
-const END_DATE = new Date().toISOString().slice(0, 10);
+const HISTORY_END = '2026-10-28';
+const CRASH_START = '2026-10-29';
+const CRASH_FACTOR = 1.105;
+const PEAK_CLOSE = 36741;
+
+function todayISO() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const TODAY = todayISO();
 
 /* ---------------- 走势控制点 ----------------
-   每一段是 [日期, 收盘点位]，中间线性插值。
+   每一段是 [日期, 收盘点位]，中间按日线性插值。
    描述：2017~2019 震荡走高摸到 24000；2020~2022 高位横盘，
    2021.2.24 见顶 36741；22 年底跌回 8000；2023 起阴跌，
    2024.5.1 跌破基准线 0 后一路水下；2025.5.2-5.4 三连暴跌；
-   2026.9.10 单日暴跌；目前水下 12000 附近。            */
+   2026.9.10 单日暴跌；2026.10.28 水下 12000。            */
 const ANCHORS = [
   ['2017-11-11', 8600],
   ['2018-04-15', 12400],
@@ -64,17 +77,7 @@ const ANCHORS = [
   ['2026-10-28', -12000],
 ];
 
-/* 关键日期：这些日子逐日生成，用来呈现暴跌等剧烈变化 */
-const EXTRA_DAYS = [
-  '2021-02-22', '2021-02-23', '2021-02-24', '2021-02-25', '2021-02-26',
-  '2024-04-29', '2024-04-30', '2024-05-01', '2024-05-02', '2024-05-03',
-  '2025-04-30', '2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05',
-  '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11',
-];
-
-/* 控制点上的日期必须取锚点原值，不叠加噪声——
-   2021.2.24 的 36741、2026.9.10 的暴跌幅度等都是叙事锚点，不能被噪声改动。 */
-const ANCHOR_DATES = new Set(ANCHORS.map(([d]) => d));
+const ANCHOR_DATES = new Set(ANCHORS.map(([date]) => date));
 
 /* ---------------- 伪随机（固定种子，保证可复现） ---------------- */
 
@@ -89,17 +92,28 @@ function makeRandom(seed) {
   };
 }
 
+function hashDate(date) {
+  return [...date].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) >>> 0, 7);
+}
+
 /* ---------------- 日期工具 ---------------- */
 
 const toDate = (s) => new Date(`${s}T00:00:00Z`);
 const fmt = (d) => d.toISOString().slice(0, 10);
-const addDays = (s, n) => {
-  const d = toDate(s);
+
+function addDays(dateStr, n) {
+  const d = toDate(dateStr);
   d.setUTCDate(d.getUTCDate() + n);
   return fmt(d);
-};
+}
+
 const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / 86400000);
-const WEEK = 7;
+
+function eachDay(start, end) {
+  const dates = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) dates.push(d);
+  return dates;
+}
 
 /* ---------------- 曲线插值 ---------------- */
 
@@ -121,133 +135,118 @@ function baselineValue(date) {
   return last[1];
 }
 
-/**
- * 波动幅度随阶段而异：
- *   2017~2019 震荡期振幅大；2020~2022 横盘期振幅小；
- *   2023 之后阴跌期中等，暴跌日附近压到最低以免掩盖真实跳空。
- *
- * 关键：噪声必须收敛到区间两端。做法是在每个锚点区间内，
- * 用「到两端的距离」构造一个 0→1→0 的包络，噪声乘上它。
- * 这样区间的极值天然落在端点上，2021.2.24 的 36741 就一定是最高点。
- */
-function volatilityAt(date) {
-  const y = Number(date.slice(0, 4));
-  const base = y <= 2019 ? 0.035 : y <= 2022 ? 0.012 : 0.022;
-
-  // 找到所在的锚点区间
+/** 日级波动基准：周频波动缩小到约 1/5 */
+function dailyVolatilityAt(date) {
+  const year = Number(date.slice(0, 4));
+  const base = year <= 2019 ? 0.035 : year <= 2022 ? 0.012 : 0.022;
   const t = toDate(date).getTime();
   for (let i = 0; i < ANCHORS.length - 1; i += 1) {
     const t0 = toDate(ANCHORS[i][0]).getTime();
     const t1 = toDate(ANCHORS[i + 1][0]).getTime();
     if (t < t0 || t > t1) continue;
     const raw = (t - t0) / (t1 - t0);
-    // 包络：两端为 0，中段为 1
     const envelope = Math.sin(raw * Math.PI);
-    return base * envelope;
+    return base * Math.max(0.2, envelope) * 0.22;
   }
-  return 0;
+  return base * 0.22;
 }
 
-function isCrashWindow(date) {
-  return EXTRA_DAYS.some((d) => Math.abs(daysBetween(d, date)) <= 1);
-}
+/* ---------------- 收盘价序列 ---------------- */
 
-/* ---------------- 生成收盘价序列 ---------------- */
-
-function buildSeries() {
-  const dates = [];
-  // 每周一篇：从起始日逐周推进
-  for (let d = START_DATE; d <= END_DATE; d = addDays(d, WEEK)) {
-    dates.push(d);
-  }
-  // 关键日期逐日补上
-  for (const d of EXTRA_DAYS) {
-    if (d >= START_DATE && d <= END_DATE && !dates.includes(d)) dates.push(d);
-  }
-  // 末日必须落在区间内，否则最后一周会漏掉
-  if (!dates.includes(END_DATE)) dates.push(END_DATE);
-  dates.sort();
-
-  const rand = makeRandom(20261028);
+function buildHistorySeries() {
+  const dates = eachDay(START_DATE, HISTORY_END);
+  const rand = makeRandom(20261103);
   const series = [];
   let prev = null;
 
-  for (const date of dates) {
+  dates.forEach((date, index) => {
     const base = baselineValue(date);
     let close = base;
 
-    // 锚点日期取精确值，不叠加噪声
-    if (!ANCHOR_DATES.has(date) && !isCrashWindow(date)) {
-      const vol = volatilityAt(date);
-      // 三个不同频率叠加，避免看起来像单一正弦
+    if (!ANCHOR_DATES.has(date)) {
+      const vol = dailyVolatilityAt(date);
       const noise = (rand() - 0.5) * 2 * vol
-        + Math.sin(date.length * 1.7) * vol * 0.35
-        + (rand() - 0.5) * vol * 0.6;
-      close += Math.abs(base) * noise;
+        + Math.sin(index * 0.63) * vol * 0.35
+        + (rand() - 0.5) * vol * 0.55;
+      close += Math.abs(base || 1) * noise;
     }
 
-    // 与前一条保持连续：包络已保证平滑，这里只兜住异常的大跳空
-    // （暴跌窗口刻意放开，让真实跳空得以呈现）
-    if (prev !== null && !isCrashWindow(date) && !isCrashWindow(prev.date)) {
-      const maxJump = Math.max(600, Math.abs(prev.close) * 0.12);
-      const jump = close - prev.close;
-      if (Math.abs(jump) > maxJump) {
-        close = prev.close + Math.sign(jump) * maxJump;
-      }
-    }
+    close = Math.min(PEAK_CLOSE, Math.round(close));
+    series.push({ date, close, prevClose: prev });
+    prev = close;
+  });
 
-    // 末日固定为当前点位
-    if (date === END_DATE) close = ANCHORS[ANCHORS.length - 1][1];
-
-    close = Math.round(close * 100) / 100;
-    series.push({ date, close });
-    prev = series[series.length - 1];
-  }
   return series;
 }
 
-/* ---------------- 由收盘价推出 OHLC ---------------- */
+function buildCrashSeries(startClose) {
+  const dates = eachDay(CRASH_START, TODAY);
+  const series = [];
+  let prev = startClose;
 
-/** 根据当日涨跌幅生成合理的开高低收 */
-function buildOHLC(entry, prevClose) {
-  const { date, close } = entry;
+  dates.forEach((date, index) => {
+    const close = Math.floor(prev * CRASH_FACTOR);
+    const rate = (close - prev) / Math.abs(prev);
+    if (rate > -0.1) {
+      throw new Error(`跌幅不足 10%：${date} ${prev} -> ${close}`);
+    }
+    series.push({ date, close, prevClose: prev, crashIndex: index + 1 });
+    prev = close;
+  });
+
+  return series;
+}
+
+/* ---------------- OHLC（全部整数） ---------------- */
+
+function buildOHLC(entry, isCrash = false) {
+  const { date, close, prevClose } = entry;
   const prev = prevClose ?? close;
+  const seed = hashDate(date);
   const move = close - prev;
-  const magnitude = Math.abs(close);
 
-  // 开盘：从前收向收盘方向走一小段
-  const seed = [...date].reduce((a, c) => a + c.charCodeAt(0), 0);
-  const openGap = move * (0.25 + ((seed % 17) / 100));
-  let open = prev + openGap;
+  const open = Math.round(prev + move * (0.15 + (seed % 25) / 100));
+  const bodyTop = Math.max(open, close);
+  const bodyBottom = Math.min(open, close);
+  const scale = isCrash
+    ? Math.max(30, Math.abs(close) * 0.008)
+    : Math.max(6, Math.abs(close) * 0.002 + Math.abs(move) * 0.25);
+  const upper = Math.round(scale + (seed % 23));
+  const lower = Math.round(scale + ((seed >>> 5) % 23));
 
-  // 上下影线长度：暴跌日影线更长（盘中剧烈波动）
-  const isCrash = isCrashWindow(date);
-  const wickScale = (isCrash ? 0.85 : 0.32) * (magnitude * 0.012 + Math.abs(move) * 0.35 + 40);
-  const upperWick = wickScale * (0.6 + ((seed % 23) / 40));
-  const lowerWick = wickScale * (0.6 + (((seed >> 5) % 19) / 40));
-
-  const high = Math.max(open, close) + upperWick;
-  const low = Math.min(open, close) - lowerWick;
-
-  const r2 = (n) => Math.round(n * 100) / 100;
   return {
-    open: r2(open),
-    high: r2(high),
-    low: r2(low),
-    close: r2(close),
+    open,
+    high: bodyTop + upper,
+    low: bodyBottom - lower,
+    close,
+  };
+}
+
+function buildCrashOHLC(entry) {
+  const seed = hashDate(entry.date);
+  const open = entry.prevClose;
+  const close = entry.close;
+  return {
+    open,
+    high: Math.max(open, close) + 20 + (seed % 70),
+    low: Math.min(open, close) - 20 - ((seed >>> 5) % 70),
+    close,
   };
 }
 
 /* ---------------- 标题与正文 ---------------- */
 
-/**
- * 依据当日走势、阶段位置与所处水位生成纯指数化的标题。
- *
- * 除了涨跌方向与幅度，还掺入「离峰值的距离」「离基准线的距离」
- * 「连续同向的天数」等维度，让标题更贴近当期实际形态，
- * 而不是同一个模板反复出现。
- */
 function makeTitle(date, ohlc, prevClose, index, total, ctx) {
+  if (ctx.crash) {
+    if (index === total - 1) return '最新一期：连续下跌仍在延续';
+    return `连续下跌：第 ${ctx.crashIndex} 日跌幅超 10%`;
+  }
+  if (index === total - 1) return '最新一期：指数仍在水下徘徊';
+  if (date === '2021-02-24') return '历史最高点：阶段顶部';
+  if (date === '2024-05-01') return '跌破基准线：转入水下';
+  if (date === '2025-05-02' || date === '2025-05-03' || date === '2025-05-04') return '连续暴跌：三日重挫';
+  if (date === '2026-09-10') return '单日暴跌：断崖下挫';
+
   const change = prevClose === null ? 0 : ohlc.close - prevClose;
   const dir = change > 0 ? '涨' : change < 0 ? '跌' : '平';
   const ratio = Math.abs(change) / Math.max(Math.abs(prevClose ?? ohlc.close), 1);
@@ -259,19 +258,10 @@ function makeTitle(date, ohlc, prevClose, index, total, ctx) {
   else if (year <= 2022) phase = '高位盘整';
   else phase = '阴跌延续';
 
-  // 关键日期用固定标题
-  if (index === total - 1) return '最新一期：指数仍在水下徘徊';
-  if (date === '2021-02-24') return '历史最高点：阶段顶部';
-  if (date === '2024-05-01') return '跌破基准线：转入水下';
-  if (date === '2025-05-02' || date === '2025-05-03' || date === '2025-05-04') return '连续暴跌：三日重挫';
-  if (date === '2026-09-10') return '单日暴跌：断崖下挫';
-
-  // 水位描述：以基准线 0 为界，水下再按跌幅深浅细分
   const belowBase = close < 0;
   const fromPeak = ctx.peak > 0 ? Math.abs((ctx.peak - close) / ctx.peak) : 0;
   let waterMark;
   if (belowBase) {
-    // 水下：按占峰值的跌幅分档
     waterMark = fromPeak > 0.9 ? '深水区' : fromPeak > 0.7 ? '水下' : '浅水区';
   } else {
     waterMark = close > ctx.peak * 0.9 ? '逼近峰值'
@@ -279,27 +269,15 @@ function makeTitle(date, ohlc, prevClose, index, total, ctx) {
         : close > ctx.peak * 0.4 ? '半山' : '山脚';
   }
 
-  // 连续同向天数
-  const streak = ctx.streak;
-  const streakWord = streak >= 4 ? '连跌' : streak >= 3 ? '续跌' : streak >= 2 ? '延续跌势' : '';
+  const streakWord = ctx.streak >= 4 ? '连跌' : ctx.streak >= 3 ? '续跌' : ctx.streak >= 2 ? '延续跌势' : '';
 
-  if (ratio > 0.06) {
-    return belowBase ? `${waterMark}·跌幅扩大` : `${phase}·涨势扩大`;
-  }
-  if (ratio > 0.025) {
-    return streakWord
-      ? `${waterMark}·${streakWord}`
-      : `${phase}·${dir}势明显`;
-  }
-  if (ratio > 0.008) {
-    return streakWord ? `${waterMark}·${streakWord}` : `${phase}·小幅${dir}落`;
-  }
-  // 窄幅：用水位与阶段描述，细化「高位盘整·窄幅整理」这类高频标题
+  if (ratio > 0.06) return belowBase ? `${waterMark}·跌幅扩大` : `${phase}·涨势扩大`;
+  if (ratio > 0.025) return streakWord ? `${waterMark}·${streakWord}` : `${phase}·${dir}势明显`;
+  if (ratio > 0.008) return streakWord ? `${waterMark}·${streakWord}` : `${phase}·小幅${dir}落`;
   return belowBase ? `${waterMark}·盘整` : `${phase}·窄幅整理`;
 }
 
-/** 纯指数叙述的正文，不涉及生活与情绪 */
-function makeBody(date, ohlc, index) {
+function makeBody(date, ohlc, isCrash) {
   const year = Number(date.slice(0, 4));
   let context;
   if (year <= 2019) context = '区间在震荡中逐步抬高，波动幅度较大。';
@@ -309,85 +287,94 @@ function makeBody(date, ohlc, index) {
   else context = '指数持续运行于基准线下方，反弹力度有限。';
 
   return [
-    `本期记录：${date}。`,
+    `本日记录：${date}。`,
     `开 ${ohlc.open}，高 ${ohlc.high}，低 ${ohlc.low}，收 ${ohlc.close}。`,
     context,
-    '本期仅记录指数变化。',
+    ...(isCrash ? ['当日跌幅超过 10%。'] : []),
+    '本日仅记录指数变化。',
   ].join('\n');
 }
 
-/* ---------------- 文件生成 ---------------- */
-
 function journalContent(date, ohlc, prevClose, index, total, ctx) {
   const title = makeTitle(date, ohlc, prevClose, index, total, ctx);
-  const body = makeBody(date, ohlc, index);
+  const body = makeBody(date, ohlc, ctx.crash);
   return `---\ntitle:${title}\nopen:${ohlc.open}\nhigh:${ohlc.high}\nlow:${ohlc.low}\nclose:${ohlc.close}\n---\n${body}\n`;
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  const dry = args.includes('--dry');
-  const statsOnly = args.includes('--stats');
+/* ---------------- 入口 ---------------- */
 
-  const series = buildSeries();
-  const entries = series.map((s, i) => ({
-    ...s,
-    prevClose: i > 0 ? series[i - 1].close : null,
-    ohlc: buildOHLC(s, i > 0 ? series[i - 1].close : null),
-  }));
+const args = process.argv.slice(2);
+const history = buildHistorySeries();
+const crash = buildCrashSeries(history[history.length - 1].close);
 
-  // 标题需要的上下文：历史峰值、连续同向天数
-  const peak = Math.max(...entries.map((e) => e.close));
-  let streak = 0;
-  let lastSign = 0;
-  entries.forEach((e, i) => {
-    const prev = i > 0 ? entries[i - 1].close : null;
-    const change = prev === null ? 0 : e.close - prev;
-    const sign = change > 0 ? 1 : change < 0 ? -1 : 0;
-    if (sign !== 0 && sign === lastSign) streak += 1;
-    else if (sign !== 0) { streak = 1; lastSign = sign; }
-    else streak = 0;
-    e.ctx = { peak, streak: sign < 0 ? streak : 0 };
-  });
+const entries = [
+  ...history.map((item) => ({ ...item, crash: false, crashIndex: 0 })),
+  ...crash.map((item) => ({ ...item, crash: true })),
+].map((item) => ({
+  ...item,
+  ohlc: item.crash ? buildCrashOHLC(item) : buildOHLC(item, false),
+}));
 
-  if (statsOnly || dry) {
-    console.log(`计划生成 ${entries.length} 篇日记（${entries[0].date} ~ ${entries[entries.length - 1].date}）`);
-    console.log(`周记 ${series.filter((s, i) => !EXTRA_DAYS.includes(s.date)).length} 篇，关键日 ${series.filter((s) => EXTRA_DAYS.includes(s.date)).length} 篇`);
-  }
-  if (statsOnly) {
-    const max = entries.reduce((a, b) => (b.close > a.close ? b : a));
-    const min = entries.reduce((a, b) => (b.close < a.close ? b : a));
-    console.log(`最高: ${max.close} @ ${max.date}`);
-    console.log(`最低: ${min.close} @ ${min.date}`);
-    console.log(`当前: ${entries[entries.length - 1].close}`);
-    const below = entries.filter((e) => e.close < 0);
-    console.log(`水下记录: ${below.length} 条，首次 ${below[0]?.date}`);
-    return;
-  }
-  if (args.includes('--dump')) {
-    for (const e of entries) console.log(`${e.date} ${e.close}`);
-    return;
-  }
-  if (dry) return;
+const peak = Math.max(...entries.map((e) => e.close));
+let streak = 0;
+let lastSign = 0;
+entries.forEach((entry, index) => {
+  const prev = index > 0 ? entries[index - 1].close : null;
+  const change = prev === null ? 0 : entry.close - prev;
+  const sign = change > 0 ? 1 : change < 0 ? -1 : 0;
+  if (sign !== 0 && sign === lastSign) streak += 1;
+  else if (sign !== 0) { streak = 1; lastSign = sign; }
+  else streak = 0;
+  entry.ctx = {
+    peak,
+    streak: sign < 0 ? streak : 0,
+    crash: entry.crash,
+    crashIndex: entry.crashIndex,
+  };
+});
 
-  // 清理旧日记
-  if (fs.existsSync(JOURNAL_DIR)) {
-    for (const f of fs.readdirSync(JOURNAL_DIR)) {
-      if (/^\d{4}-\d{2}-\d{2}\.md$/.test(f)) fs.unlinkSync(path.join(JOURNAL_DIR, f));
-    }
-  }
-
-  // 写入新日记
-  entries.forEach((e, i) => {
-    const content = journalContent(e.date, e.ohlc, e.prevClose, i, entries.length, e.ctx);
-    fs.writeFileSync(path.join(JOURNAL_DIR, `${e.date}.md`), content, 'utf-8');
-  });
-
-  console.log(`✓ 已生成 ${entries.length} 篇日记到 journal/`);
-  console.log(`  区间 ${entries[0].date} ~ ${entries[entries.length - 1].date}`);
+if (args.includes('--stats') || args.includes('--dry')) {
+  console.log(`计划生成 ${entries.length} 篇日频日记（${entries[0].date} ~ ${entries[entries.length - 1].date}）`);
+  console.log(`历史 ${history.length} 篇，连续下跌 ${crash.length} 篇`);
+}
+if (args.includes('--stats')) {
   const max = entries.reduce((a, b) => (b.close > a.close ? b : a));
-  console.log(`  最高 ${max.close} @ ${max.date}`);
-  console.log(`  最低 ${Math.min(...entries.map((e) => e.close))}`);
+  const min = entries.reduce((a, b) => (b.close < a.close ? b : a));
+  console.log(`最高: ${max.close} @ ${max.date}`);
+  console.log(`最低: ${min.close} @ ${min.date}`);
+  console.log(`当前: ${entries[entries.length - 1].close}`);
+  const below = entries.filter((e) => e.close < 0);
+  console.log(`水下记录: ${below.length} 条，首次 ${below[0]?.date}`);
+  for (const item of crash) {
+    const rate = (item.close - item.prevClose) / Math.abs(item.prevClose) * 100;
+    console.log(`  ${item.date} ${item.prevClose} -> ${item.close} (${rate.toFixed(2)}%)`);
+  }
+  const nonInteger = entries.filter((e) => [e.ohlc.open, e.ohlc.high, e.ohlc.low, e.ohlc.close].some((v) => !Number.isInteger(v)));
+  console.log(`非整数 OHLC: ${nonInteger.length} 条`);
+  process.exit(0);
+}
+if (args.includes('--dump')) {
+  for (const e of entries) console.log(`${e.date} ${e.close}`);
+  process.exit(0);
+}
+if (args.includes('--dry')) process.exit(0);
+
+// 清理旧日记
+if (fs.existsSync(JOURNAL_DIR)) {
+  for (const file of fs.readdirSync(JOURNAL_DIR)) {
+    if (/^\d{4}-\d{2}-\d{2}\.md$/.test(file)) fs.unlinkSync(path.join(JOURNAL_DIR, file));
+  }
 }
 
-main();
+entries.forEach((entry, index) => {
+  const content = journalContent(
+    entry.date, entry.ohlc, entry.prevClose, index, entries.length, entry.ctx,
+  );
+  fs.writeFileSync(path.join(JOURNAL_DIR, `${entry.date}.md`), content, 'utf-8');
+});
+
+console.log(`✓ 已生成 ${entries.length} 篇日频日记到 journal/`);
+console.log(`  区间 ${entries[0].date} ~ ${entries[entries.length - 1].date}`);
+console.log(`  历史 ${history.length} 篇，连续下跌 ${crash.length} 篇`);
+console.log(`  最高 ${Math.max(...entries.map((e) => e.close))}，当前 ${entries[entries.length - 1].close}`);
+console.log('  下一步：node tools/journal.mjs sync');

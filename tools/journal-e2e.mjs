@@ -97,10 +97,10 @@ title: 不急着给今天下结论
 mood: 平静 · 认真
 energy: 7
 tags: 生活, 自我观察
-open: 1000.00
-high: 1088.20
-low: 972.50
-close: 1086.42
+open: 1000
+high: 1088
+low: 972
+close: 1086
 ---
 
 今天写了一些东西。`, 'utf-8');
@@ -124,7 +124,7 @@ console.log('\n[commit：合并并提交推送]');
   check('日期正确', recs[0]?.date === '2026-10-27');
   check('标题正确', recs[0]?.title === '不急着给今天下结论');
   check('正文完整', recs[0]?.body === '今天写了一些东西。');
-  check('OHLC 正确', recs[0]?.ohlc.close === 1086.42 && recs[0]?.ohlc.high === 1088.20);
+  check('OHLC 正确', recs[0]?.ohlc.close === 1086 && recs[0]?.ohlc.high === 1088);
   check('标签为数组', Array.isArray(recs[0]?.tags) && recs[0].tags.length === 2);
 
   const log = git(['log', '--oneline']).stdout.trim().split('\n');
@@ -140,7 +140,7 @@ console.log('\n[同日期再次提交：更新而非重复]');
   const f = path.join(repo, 'journal', '2026-10-27.md');
   fs.writeFileSync(f, `---
 title: 改过的标题
-close: 1090.00
+close: 1090
 ---
 
 改过的正文。`, 'utf-8');
@@ -162,7 +162,7 @@ console.log('\n[新增第二天：open 应取上一条收盘]');
   const f = path.join(repo, 'journal', '2026-10-29.md');
   fs.writeFileSync(f, `---
 title: 第二天
-close: 1100.00
+close: 1100
 ---
 
 第二天正文。`, 'utf-8');
@@ -212,7 +212,7 @@ console.log('\n[没有对应日记文件的记录：保留不删]');
   const f = path.join(repo, 'journal', '2026-12-01.md');
   fs.writeFileSync(f, `---
 title: 新的一天
-close: 1200.00
+close: 1200
 ---
 
 新的一天。`, 'utf-8');
