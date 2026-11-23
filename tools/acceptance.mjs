@@ -86,10 +86,10 @@ try {
   check('带哈希的 CSS 可访问', cssHref ? (await page.request.get(`${BASE}${cssHref}`)).ok() : false, cssHref);
 
   console.log('\n[子路径哈希路由]');
-  await page.goto(`${BASE}${PREFIX}/#/history`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}${PREFIX}/#/overview`, { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
-  check('直接刷新 #/history 正常', (await page.locator('#history-chart svg').count()) === 1);
+  check('直接刷新 #/overview 正常', (await page.locator('#overview-chart svg').count()) === 1);
   check('行情表渲染', (await page.locator('.data-table tbody tr').count()) > 0);
 
   console.log('\n[自定义域名文件]');

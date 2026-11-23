@@ -99,7 +99,7 @@ try {
   await goto(page);
 
   check('页面标题正确', (await page.title()).includes('梦澄指数'));
-  check('Hero 当前点位与最新收盘一致', (await page.locator('.hero-value').innerText()).includes(Number(last.ohlc.close).toLocaleString('zh-CN', { maximumFractionDigits: 0 })));
+  check('Hero 当前点位与最新收盘一致', (await page.locator('.market-value').innerText()).includes(Number(last.ohlc.close).toLocaleString('zh-CN', { maximumFractionDigits: 0 })));
   check('侧栏记录数与数据一致', (await page.locator('#side-status-text').innerText()).includes(`${records.length} 条`));
   check('顶栏返回主站按钮可见', await page.locator('.site-return').isVisible());
   check('返回主站地址正确', (await page.locator('.site-return').getAttribute('href')) === 'https://yumesumi.cyou/');
@@ -107,14 +107,14 @@ try {
   check('默认范围为 90 天', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
   check('K 线 SVG 已绘制', (await page.locator('#overview-chart svg').count()) === 1);
   check('K 线已渲染', Number(await page.locator('#overview-chart').getAttribute('data-chart-visible')) > 0);
-  check('MA7 已绘制', (await page.locator('#overview-chart .chart-ma').count()) === 1);
+  check('MA7/25/99 已绘制', await page.evaluate(() => ['7', '25', '99'].every((p) => document.querySelector(`#overview-chart .chart-ma-${p}`))));
   check('Y 轴标签固定在图表左侧', (await page.locator('#overview-chart .chart-yaxis-label').count()) >= 3);
   check('MiSans 字体已加载', await page.evaluate(async () => {
     await document.fonts.ready;
     return document.fonts.check('16px MiSans');
   }));
   check('玻璃面板使用 backdrop-filter', await page.evaluate(() => {
-    const style = getComputedStyle(document.querySelector('.hero-panel'));
+    const style = getComputedStyle(document.querySelector('.market-panel'));
     return /blur/.test(style.backdropFilter || style.webkitBackdropFilter || '');
   }));
   check('桌面端无 JS 错误', watchPage.errors.length === 0, watchPage.errors.join(' | '));
@@ -147,10 +147,10 @@ try {
   check('悬停提示含 OHLC', (await page.locator('#overview-chart .chart-tip').innerText()).includes('开'));
   await page.mouse.move(0, 0);
 
-  await page.evaluate(() => { window.__heroBeforePreset = document.querySelector('.hero-panel'); });
+  await page.evaluate(() => { window.__heroBeforePreset = document.querySelector('.market-panel'); });
   await page.click('.seg-btn[data-range="7"]');
   await page.waitForTimeout(600);
-  check('预设窗口不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.hero-panel')));
+  check('预设窗口不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.market-panel')));
   check('7 天窗口被选中', (await page.locator('.seg-btn[data-range="7"]').getAttribute('class')).includes('is-active'));
   const weekWindow = await readWindow();
   check('7 天窗口只显示近期记录', weekWindow.visible >= 6 && weekWindow.visible <= 9, String(weekWindow.visible));
@@ -160,7 +160,7 @@ try {
 
   const beforeZoom = weekWindow.end - weekWindow.start;
   await page.evaluate(() => {
-    window.__heroNode = document.querySelector('.hero-panel');
+    window.__heroNode = document.querySelector('.market-panel');
     window.__chartHost = document.querySelector('#overview-chart');
   });
   box = await stageBox();
@@ -171,7 +171,7 @@ try {
   check('滚轮缩放缩小时间窗口', (zoomedWindow.end - zoomedWindow.start) < beforeZoom,
     `${(zoomedWindow.end - zoomedWindow.start) / 86400000}d / ${beforeZoom / 86400000}d`);
   check('缩放后切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
-  check('缩放不会重建整页', await page.evaluate(() => window.__heroNode?.isConnected && window.__heroNode === document.querySelector('.hero-panel')));
+  check('缩放不会重建整页', await page.evaluate(() => window.__heroNode?.isConnected && window.__heroNode === document.querySelector('.market-panel')));
   check('缩放不会重建盘面容器', await page.evaluate(() => window.__chartHost === document.querySelector('#overview-chart')));
   check('窗口摘要同步为自定义', (await page.locator('#overview-range-summary').innerText()).includes('自定义窗口'));
 
@@ -191,40 +191,43 @@ try {
   check('90 天档位被选中', (await page.locator('.seg-btn[data-range="90"]').getAttribute('class')).includes('is-active'));
   const visible90 = Number(await page.locator('#overview-chart').getAttribute('data-chart-visible'));
   check('90 天范围只保留近期记录', visible90 >= 85 && visible90 <= 95, String(visible90));
-  await page.click('[data-action="toggle-ma"]');
+  await page.click('[data-action="toggle-ma"][data-period="7"]');
   await page.waitForTimeout(400);
-  check('关闭 MA7 后均线消失', (await page.locator('#overview-chart .chart-ma').count()) === 0);
-  await page.click('[data-action="toggle-ma"]');
+  check('关闭 MA7 后 MA7 消失', (await page.locator('#overview-chart .chart-ma-7').count()) === 0);
+  check('MA25/99 仍然保留', (await page.locator('#overview-chart .chart-ma-25').count()) === 1
+    && (await page.locator('#overview-chart .chart-ma-99').count()) === 1);
+  await page.click('[data-action="toggle-ma"][data-period="7"]');
   await page.waitForTimeout(300);
-  check('MA 切换不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.hero-panel')));
+  check('MA7 重新出现', (await page.locator('#overview-chart .chart-ma-7').count()) === 1);
+  check('MA 切换不重建整页', await page.evaluate(() => window.__heroBeforePreset?.isConnected && window.__heroBeforePreset === document.querySelector('.market-panel')));
 
   /* ================= 日记 ================= */
   console.log('\n[桌面 · 日记]');
   await goto(page, '#/journal');
-  check('日记首屏分批渲染', (await page.locator('.entry').count()) === 24);
+  check('日记首屏分批渲染', (await page.locator('.journal-row').count()) === 24);
   check('搜索框铺满工具栏', await page.locator('.search-field').evaluate((el) => el.getBoundingClientRect().width > 500));
   check('年份归档完整', (await page.locator('.chip').count()) === years.size + 1,
     `${await page.locator('.chip').count()} / ${years.size + 1}`);
   await page.fill('#journal-search', '水下');
   await page.waitForTimeout(250);
-  const waterEntries = await page.locator('.entry').count();
+  const waterEntries = await page.locator('.journal-row').count();
   check('全文搜索命中', waterEntries > 0, String(waterEntries));
   await page.fill('#journal-search', '');
   await page.waitForTimeout(200);
   await page.click('.chip[data-year="2026"]');
   await page.waitForTimeout(250);
-  const yearDates = await page.locator('.entry-date time').allTextContents();
+  const yearDates = await page.locator('.journal-row time').allTextContents();
   check('年份筛选只显示 2026', yearDates.length > 0 && yearDates.every((d) => d.startsWith('2026')));
-  const beforeMore = await page.locator('.entry').count();
+  const beforeMore = await page.locator('.journal-row').count();
   const moreBtn = page.locator('.load-more');
   if (await moreBtn.count()) {
     await moreBtn.first().click();
     await page.waitForTimeout(300);
   }
-  check('加载更多增加条目', (await page.locator('.entry').count()) >= beforeMore);
+  check('加载更多增加条目', (await page.locator('.journal-row').count()) >= beforeMore);
   await page.click('.chip[data-year="all"]');
   await page.waitForTimeout(250);
-  await page.locator('.entry-title button').first().click();
+  await page.locator('.journal-row').first().click();
   await page.waitForTimeout(350);
   check('阅读弹窗打开', await page.locator('.modal-reading').isVisible());
   check('阅读弹窗含正文', (await page.locator('.journal-body').innerText()).length > 10);
@@ -241,35 +244,35 @@ try {
   await goto(page, '#/history');
   await page.click('.seg-btn[data-range="all"]');
   await page.waitForTimeout(600);
-  check('历史图表已绘制', (await page.locator('#history-chart svg').count()) === 1);
+  check('概览 K 线已绘制', (await page.locator('#overview-chart svg').count()) === 1);
   check('行情表首屏 120 行', (await page.locator('.data-table tbody tr').count()) === 120,
     String(await page.locator('.data-table tbody tr').count()));
   const firstRow = await page.locator('.data-table tbody tr').first().locator('td').allTextContents();
   check('行情表首行是最新日期', firstRow[0].includes(last.date), firstRow[0]);
-  check('行情表首行收盘正确', firstRow[4].replaceAll(',', '').trim() === String(last.ohlc.close),
-    `${firstRow[4]} / ${last.ohlc.close}`);
-  await page.click('[data-action="load-more-history"]');
+  check('行情表首行收盘正确', firstRow[2].replaceAll(',', '').trim() === String(last.ohlc.close),
+    `${firstRow[2]} / ${last.ohlc.close}`);
+  await page.click('[data-action="load-more-table"]');
   await page.waitForTimeout(400);
   check('行情表加载更多', (await page.locator('.data-table tbody tr').count()) === 240);
 
-  const historyChart = page.locator('#history-chart');
-  await historyChart.scrollIntoViewIfNeeded();
+  const detailChart = page.locator('#overview-chart');
+  await detailChart.scrollIntoViewIfNeeded();
   await page.waitForTimeout(250);
   await page.evaluate(() => { window.__historyHead = document.querySelector('.view-head'); });
-  const historyBox = await page.locator('#history-chart .chart-stage').boundingBox();
+  const historyBox = await page.locator('#overview-chart .chart-stage').boundingBox();
   await page.mouse.move(historyBox.x + historyBox.width * 0.55, historyBox.y + historyBox.height / 2);
   await page.mouse.wheel(0, -320);
   await page.waitForTimeout(750);
   check('历史缩放切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
   check('历史缩放不会重建整页', await page.evaluate(() => window.__historyHead?.isConnected && window.__historyHead === document.querySelector('.view-head')));
-  const historyVisible = Number(await historyChart.getAttribute('data-chart-visible'));
+  const historyVisible = Number(await detailChart.getAttribute('data-chart-visible'));
   check('行情表跟随缩放窗口', (await page.locator('.data-table tbody tr').count()) === Math.min(120, historyVisible),
     `${await page.locator('.data-table tbody tr').count()} / ${historyVisible}`);
   await page.click('.seg-btn[data-range="all"]');
   await page.waitForTimeout(600);
-  await page.click('[data-action="load-more-history"]');
+  await page.click('[data-action="load-more-table"]');
   await page.waitForTimeout(400);
-  await capture(page, 'desktop-history.png');
+  await capture(page, 'desktop-detail.png');
 
   /* ================= 说明 + 导出 ================= */
   console.log('\n[桌面 · 说明与导出]');
@@ -293,13 +296,11 @@ try {
   await page.fill('#f-title', '端到端测试记录');
   await page.fill('#f-body', '这是端到端测试正文。\n\n![logo](brand/logo.svg)');
   await page.fill('#f-open', '-12000');
-  await page.fill('#f-high', '-12200');
-  await page.fill('#f-low', '-12300');
-  await page.fill('#f-close', '-12050');
+  await page.fill('#f-close', '-12050.5');
   await page.click('[form="record-form"]');
   await page.waitForTimeout(300);
-  check('非法 OHLC 被表单拒绝', await page.locator('#form-error').isVisible());
-  await page.fill('#f-high', '-11900');
+  check('小数收盘被表单拒绝', await page.locator('#form-error').isVisible());
+  await page.fill('#f-close', '-12050');
   await page.click('[form="record-form"]');
   await page.waitForTimeout(450);
   check('保存后出现暂存提示条', await page.locator('#pending-bar').isVisible());
@@ -307,8 +308,8 @@ try {
   await goto(page, '#/journal');
   await page.fill('#journal-search', '端到端测试记录');
   await page.waitForTimeout(300);
-  check('暂存记录出现在日记列表', (await page.locator('.entry').count()) === 1);
-  check('暂存记录带待发布标记', (await page.locator('.entry .badge-warn').count()) === 1);
+  check('暂存记录出现在日记列表', (await page.locator('.journal-row').count()) === 1);
+  check('暂存记录带待发布标记', (await page.locator('.journal-row .badge-warn').count()) === 1);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
   check('刷新后暂存仍存在', await page.locator('#pending-bar').isVisible());
@@ -328,7 +329,7 @@ try {
   check('刷新后暂存保持清除状态', await page.locator('#pending-bar').isHidden());
   await page.fill('#journal-search', '端到端测试记录');
   await page.waitForTimeout(300);
-  check('清除后暂存记录不再出现', (await page.locator('.entry').count()) === 0);
+  check('清除后暂存记录不再出现', (await page.locator('.journal-row').count()) === 0);
 
   /* ================= 封面 / 插图 ================= */
   console.log('\n[日记 · 封面与插图]');
@@ -339,7 +340,7 @@ try {
         record: {
           date: '2026-12-30', title: '封面与插图测试', body: '正文第一段。\n\n![品牌标记](brand/logo.svg)', mood: '测试',
           energy: 5, tags: ['测试'], cover: 'brand/logo.svg',
-          ohlc: { open: -12000, high: -11900, low: -12100, close: -12050 },
+          ohlc: { open: -12000, close: -12050 },
         },
       },
     }));
@@ -348,8 +349,8 @@ try {
   await page.waitForTimeout(500);
   await page.fill('#journal-search', '封面与插图测试');
   await page.waitForTimeout(350);
-  check('列表渲染封面图', await page.locator('.entry-cover img').evaluate((img) => img.complete && img.naturalWidth > 0));
-  await page.locator('.entry-title button').first().click();
+  check('单行列表不渲染封面', (await page.locator('.entry-cover').count()) === 0);
+  await page.locator('.journal-row').first().click();
   await page.waitForTimeout(400);
   check('阅读页渲染封面', await page.locator('.detail-cover img').evaluate((img) => img.complete && img.naturalWidth > 0));
   check('正文 Markdown 图片被渲染', await page.locator('.journal-body img').count() === 1);
@@ -366,9 +367,9 @@ try {
     body: '[]',
   }));
   await goto(emptyPage);
-  check('空数据不崩溃', (await emptyPage.locator('.hero-value.is-empty').count()) === 1);
+  check('空数据不崩溃', (await emptyPage.locator('.market-value.is-empty').count()) === 1);
   check('空数据图表显示空状态', (await emptyPage.locator('.chart-empty').count()) === 1);
-  check('空数据无假行情', (await emptyPage.locator('.hero-value').innerText()).trim() === '—');
+  check('空数据无假行情', (await emptyPage.locator('.market-value').innerText()).trim() === '—');
   check('空数据无 JS 错误', watchEmpty.errors.length === 0, watchEmpty.errors.join(' | '));
   await emptyPage.close();
 
@@ -386,7 +387,7 @@ try {
   check('移动端无横向溢出', await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
     await mobile.evaluate(() => `${document.documentElement.scrollWidth} / ${window.innerWidth}`));
   check('移动端菜单按钮可见', await mobile.locator('.menu-btn').isVisible());
-  check('移动端指数概览可见', await mobile.locator('.hero-value').isVisible());
+  check('移动端指数概览可见', await mobile.locator('.market-value').isVisible());
   await mobile.locator('#overview-chart').scrollIntoViewIfNeeded();
   await mobile.waitForTimeout(300);
   const mobileHost = mobile.locator('#overview-chart');
@@ -426,7 +427,7 @@ try {
   await mobile.waitForTimeout(800);
   const pinchAfter = Date.parse(await mobileHost.getAttribute('data-chart-end')) - Date.parse(await mobileHost.getAttribute('data-chart-start'));
   check('移动端双指缩放', pinchAfter < pinchBefore, `${pinchAfter / 86400000}d / ${pinchBefore / 86400000}d`);
-  await mobile.locator('.hero-value').scrollIntoViewIfNeeded();
+  await mobile.locator('.market-value').scrollIntoViewIfNeeded();
   await mobile.waitForTimeout(200);
   await capture(mobile, 'mobile-overview.png');
   await mobile.click('.menu-btn');
@@ -450,7 +451,8 @@ try {
     await tablet.evaluate(() => `${document.documentElement.scrollWidth} / ${window.innerWidth}`));
   check('平板使用移动端导航', await tablet.locator('.menu-btn').isVisible());
   check('平板 K 线正常绘制', (await tablet.locator('#overview-chart svg').count()) === 1);
-  check('平板四张指标卡可见', (await tablet.locator('.stat').count()) === 4);
+  check('平板盘面与详细历史可见', (await tablet.locator('.market-panel').count()) === 1
+    && (await tablet.locator('#detailed-history').count()) === 1);
   check('平板无 JS 错误', watchTablet.errors.length === 0, watchTablet.errors.join(' | '));
   await capture(tablet, 'tablet-overview.png');
 
@@ -469,7 +471,8 @@ try {
   await goto(page, '#/history');
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
-  check('直接刷新哈希路由正常', (await page.locator('#history-chart svg').count()) === 1);
+  check('旧 #/history 回退概览', (await page.locator('#overview-chart svg').count()) === 1
+    && (await page.locator('#page-title').innerText()) === '指数概览');
   const fontRes = await page.request.get(`${BASE}/fonts/fonts.css`);
   check('字体样式可访问', fontRes.ok());
   const dataRes = await page.request.get(`${BASE}/data/records.json`);

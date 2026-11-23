@@ -46,7 +46,7 @@ for (const f of fs.readdirSync(path.join(repo, 'journal'))) {
 // 数据文件也置空：本用例断言的是「从零新增」的行为，
 // 不能受真实仓库当前已有记录的影响
 fs.writeFileSync(path.join(repo, 'data', 'records.json'), '[]\n', 'utf-8');
-// 基准固定为 1000：本用例要验证 open/high/low 的缺省补全规则，
+// 基准固定为 1000：本用例要验证 open 的缺省补全规则，
 // 需要一个已知的基准值，不能跟着真实仓库的基准设置变
 const indexMeta = JSON.parse(fs.readFileSync(path.join(repo, 'data', 'index.json'), 'utf-8'));
 indexMeta.base_value = 1000;
@@ -98,8 +98,6 @@ mood: 平静 · 认真
 energy: 7
 tags: 生活, 自我观察
 open: 1000
-high: 1088
-low: 972
 close: 1086
 ---
 
@@ -124,7 +122,7 @@ console.log('\n[commit：合并并提交推送]');
   check('日期正确', recs[0]?.date === '2026-10-27');
   check('标题正确', recs[0]?.title === '不急着给今天下结论');
   check('正文完整', recs[0]?.body === '今天写了一些东西。');
-  check('OHLC 正确', recs[0]?.ohlc.close === 1086 && recs[0]?.ohlc.high === 1088);
+  check('开收盘正确', recs[0]?.ohlc.open === 1000 && recs[0]?.ohlc.close === 1086);
   check('标签为数组', Array.isArray(recs[0]?.tags) && recs[0].tags.length === 2);
 
   const log = git(['log', '--oneline']).stdout.trim().split('\n');
@@ -153,8 +151,6 @@ close: 1090
   check('正文已更新', recs[0]?.body === '改过的正文。');
   check('收盘价已更新', recs[0]?.ohlc.close === 1090);
   check('缺省 open 取上一条收盘（此为第一条，取沙箱基准 1000）', recs[0]?.ohlc.open === 1000, String(recs[0]?.ohlc.open));
-  check('缺省 high 取 max(open, close)', recs[0]?.ohlc.high === 1090, String(recs[0]?.ohlc.high));
-  check('缺省 low 取 min(open, close)', recs[0]?.ohlc.low === 1000, String(recs[0]?.ohlc.low));
 }
 
 console.log('\n[新增第二天：open 应取上一条收盘]');
@@ -175,7 +171,7 @@ close: 1100
   check('缺失的 10-28 没有被补造成记录', !recs.some((x) => x.date === '2026-10-28'));
 }
 
-console.log('\n[非法 OHLC：拒绝且不修改数据]');
+console.log('\n[非法价格：拒绝且不修改数据]');
 {
   const before = fs.readFileSync(recordsFile, 'utf-8');
   const commitsBefore = git(['rev-list', '--count', 'HEAD']).stdout.trim();
@@ -183,16 +179,14 @@ console.log('\n[非法 OHLC：拒绝且不修改数据]');
   fs.writeFileSync(f, `---
 title: 坏数据
 open: 1000
-high: 900
-low: 800
-close: 850
+close: 850.5
 ---
 
 坏数据正文。`, 'utf-8');
 
   const r = journalCmd(['commit']);
   check('commit 被拒绝', r.status !== 0);
-  check('提示最高价问题', r.stdout.includes('最高价'), r.stdout.slice(0, 400));
+  check('提示收盘价必须为整数', r.stdout.includes('整数'), r.stdout.slice(0, 400));
   check('records.json 未被修改', fs.readFileSync(recordsFile, 'utf-8') === before);
   check('未产生新提交', git(['rev-list', '--count', 'HEAD']).stdout.trim() === commitsBefore,
     `${commitsBefore} → ${git(['rev-list', '--count', 'HEAD']).stdout.trim()}`);
@@ -205,7 +199,7 @@ console.log('\n[没有对应日记文件的记录：保留不删]');
   const recs = readRecords();
   recs.push({
     date: '2026-09-01', title: '只存在于 JSON 的记录', body: 'x', mood: '', energy: null, tags: [],
-    ohlc: { open: 1000, high: 1000, low: 1000, close: 1000 },
+    ohlc: { open: 1000, close: 1000 },
   });
   fs.writeFileSync(recordsFile, `${JSON.stringify(recs, null, 2)}\n`, 'utf-8');
 

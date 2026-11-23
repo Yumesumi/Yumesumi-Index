@@ -4,9 +4,8 @@ import { formatDateLong, pendingDates } from '../lib/data.js';
 import { icon } from './icons.js';
 
 export const VIEW_META = {
-  overview: { title: '指数概览', eyebrow: 'OVERVIEW', sub: '当前点位与最近记录' },
+  overview: { title: '指数概览', eyebrow: 'OVERVIEW', sub: 'K 线与详细历史' },
   journal: { title: '日记归档', eyebrow: 'JOURNAL', sub: '记录、检索与阅读' },
-  history: { title: '历史行情', eyebrow: 'HISTORY', sub: 'K 线与行情表' },
   methodology: { title: '指数说明', eyebrow: 'METHODOLOGY', sub: '规则、数据与发布' },
 };
 

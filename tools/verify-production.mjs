@@ -46,7 +46,7 @@ check('HTML 含环境星场', html.includes('id="ambience-stars"'));
 
 const records = await (await fetchRetry(`${liveUrl.origin}/data/records.json${cacheBust}`, { headers: { 'cache-control': 'no-cache' } })).json();
 check('线上数据可读取', Array.isArray(records) && records.length > 0, String(records.length));
-check('线上点位全部为整数', records.every((r) => ['open', 'high', 'low', 'close'].every((k) => Number.isInteger(r.ohlc[k]))));
+check('线上点位全部为整数', records.every((r) => ['open', 'close'].every((k) => Number.isInteger(r.ohlc[k]))));
 check('线上记录数为 3281', records.length === 3281, String(records.length));
 const lastSeven = records.slice(-7).map((r, i) => {
   const prev = records[records.length - 8 + i];
@@ -83,9 +83,10 @@ try {
   await page.waitForSelector('#overview-chart .chart-stage', { timeout: 30000 });
   await page.waitForTimeout(900);
   check('页面标题正确', (await page.title()).includes('梦澄指数'));
-  check('最新点位已渲染', (await page.locator('.hero-value').innerText()).includes(Number(records.at(-1).ohlc.close).toLocaleString('zh-CN', { maximumFractionDigits: 0 })));
+  check('最新点位已渲染', (await page.locator('.market-value').innerText()).includes(Number(records.at(-1).ohlc.close).toLocaleString('zh-CN', { maximumFractionDigits: 0 })));
   check('记录数与线上数据一致', (await page.locator('#side-status-text').innerText()).includes(`${records.length} 条`));
   check('K 线已绘制', Number(await page.locator('#overview-chart').getAttribute('data-chart-visible')) > 0);
+  check('线上 MA7/25/99 已绘制', await page.evaluate(() => ['7', '25', '99'].every((p) => document.querySelector(`#overview-chart .chart-ma-${p}`))));
   check('MiSans 已加载', await page.evaluate(async () => { await document.fonts.ready; return document.fonts.check('16px MiSans'); }));
   check('返回主站按钮可用', (await page.locator('.site-return').getAttribute('href')) === 'https://yumesumi.cyou/');
   const liveChart = page.locator('#overview-chart');
@@ -95,7 +96,7 @@ try {
   await page.mouse.move(liveStage.x + liveStage.width - 30, liveStage.y + liveStage.height / 2);
   await page.waitForTimeout(200);
   check('图表悬停提示正常', await page.locator('#overview-chart .chart-tip').isVisible());
-  await page.evaluate(() => { window.__liveHero = document.querySelector('.hero-panel'); });
+  await page.evaluate(() => { window.__liveHero = document.querySelector('.market-panel'); });
   const spanBefore = Date.parse(await liveChart.getAttribute('data-chart-end')) - Date.parse(await liveChart.getAttribute('data-chart-start'));
   await page.mouse.move(liveStage.x + liveStage.width / 2, liveStage.y + liveStage.height / 2);
   await page.mouse.wheel(0, -320);
@@ -103,7 +104,7 @@ try {
   const spanAfter = Date.parse(await liveChart.getAttribute('data-chart-end')) - Date.parse(await liveChart.getAttribute('data-chart-start'));
   check('线上图表支持滚轮缩放', spanAfter < spanBefore, `${spanAfter / 86400000}d / ${spanBefore / 86400000}d`);
   check('线上缩放切换为自定义窗口', (await page.locator('.seg-btn.is-active').innerText()).includes('自定义'));
-  check('线上缩放不会重建整页', await page.evaluate(() => window.__liveHero?.isConnected && window.__liveHero === document.querySelector('.hero-panel')));
+  check('线上缩放不会重建整页', await page.evaluate(() => window.__liveHero?.isConnected && window.__liveHero === document.querySelector('.market-panel')));
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(300);
   check('桌面端无 JS 错误', errors.length === 0, errors.join(' | '));
@@ -117,7 +118,7 @@ try {
   mobile.on('pageerror', (err) => mobileErrors.push(err.message));
   mobile.on('console', (msg) => { if (msg.type() === 'error') mobileErrors.push(msg.text()); });
   await mobile.goto(`${pageUrl}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await mobile.waitForSelector('.hero-value', { timeout: 30000 });
+  await mobile.waitForSelector('.market-value', { timeout: 30000 });
   await mobile.waitForTimeout(700);
   check('移动端无横向溢出', await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await mobile.click('.menu-btn');
@@ -134,10 +135,11 @@ try {
 
   console.log('\n[线上哈希路由]');
   await page.goto(`${pageUrl}/#/history`.replace(`${cacheBust}/`, `${cacheBust}`), { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForSelector('#history-chart .chart-stage', { timeout: 30000 });
+  await page.waitForSelector('#overview-chart .chart-stage', { timeout: 30000 });
   await page.waitForTimeout(700);
-  check('直接访问 #/history 正常', (await page.locator('#history-chart svg').count()) === 1);
-  check('行情表有数据', (await page.locator('.data-table tbody tr').count()) > 0);
+  check('旧 #/history 回退概览', (await page.locator('#overview-chart svg').count()) === 1
+    && (await page.locator('#page-title').innerText()) === '指数概览');
+  check('详细历史表有数据', (await page.locator('.data-table tbody tr').count()) > 0);
 
   console.log('\n[线上本地数据入口]');
   await page.goto(`${pageUrl}/#/methodology`.replace(`${cacheBust}/`, `${cacheBust}`), { waitUntil: 'domcontentloaded', timeout: 60000 });

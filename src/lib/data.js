@@ -125,15 +125,14 @@ export function isSafeImageSource(src) {
 
 /* ---------------- 校验 ---------------- */
 
-/** 校验 OHLC 关系，返回错误文案数组 */
-export function validateOHLC(ohlc) {
+/** 校验开盘价与收盘价，返回错误文案数组 */
+export function validatePrices(ohlc) {
   const errors = [];
   if (!ohlc || typeof ohlc !== 'object') {
-    return ['缺少 OHLC 数据'];
+    return ['缺少开收盘数据'];
   }
-  const names = { open: '开盘价', high: '最高价', low: '最低价', close: '收盘价' };
-  const values = {};
-  for (const key of ['open', 'high', 'low', 'close']) {
+  const names = { open: '开盘价', close: '收盘价' };
+  for (const key of ['open', 'close']) {
     const raw = ohlc[key];
     const num = typeof raw === 'number' ? raw : Number(raw);
     if (raw === null || raw === undefined || raw === '') {
@@ -142,18 +141,8 @@ export function validateOHLC(ohlc) {
       errors.push(`${names[key]}必须是有效数字`);
     } else if (!Number.isInteger(num)) {
       errors.push(`${names[key]}必须是整数`);
-    } else {
-      values[key] = num;
     }
   }
-  if (errors.length) return errors;
-
-  const { open, high, low, close } = values;
-  if (high < open) errors.push('最高价必须大于等于开盘价');
-  if (high < close) errors.push('最高价必须大于等于收盘价');
-  if (low > open) errors.push('最低价必须小于等于开盘价');
-  if (low > close) errors.push('最低价必须小于等于收盘价');
-  if (low > high) errors.push('最低价必须小于等于最高价');
   return errors;
 }
 
@@ -186,7 +175,7 @@ export function validateRecord(record) {
     if (typeof record.cover !== 'string') errors.push('封面必须是路径文本');
     else if (!isSafeImageSource(record.cover)) errors.push('封面路径不合法');
   }
-  errors.push(...validateOHLC(record.ohlc));
+  errors.push(...validatePrices(record.ohlc));
   return errors;
 }
 
@@ -207,8 +196,6 @@ export function normalizeRecord(raw) {
     cover: typeof raw?.cover === 'string' ? raw.cover.trim() : '',
     ohlc: {
       open: toNum(ohlc.open),
-      high: toNum(ohlc.high),
-      low: toNum(ohlc.low),
       close: toNum(ohlc.close),
     },
   };
@@ -291,15 +278,14 @@ export function computeSummary(metrics, baseValue = BASE_VALUE) {
   };
 }
 
-/** 移动平均线：只基于真实记录计算，不补造缺失日期 */
+/** 移动平均线：基于全部真实收盘价计算，窗口边缘保持连续 */
 export function movingAverage(values, period) {
   const out = new Array(values.length).fill(null);
   let sum = 0;
   for (let i = 0; i < values.length; i += 1) {
     sum += values[i];
     if (i >= period) sum -= values[i - period];
-    const windowSize = Math.min(i + 1, period);
-    if (windowSize === period) out[i] = sum / period;
+    if (i + 1 >= period) out[i] = sum / period;
   }
   return out;
 }
@@ -359,8 +345,6 @@ export function toExportRecords(records) {
     if (record.cover) out.cover = record.cover;
     out.ohlc = {
       open: record.ohlc.open,
-      high: record.ohlc.high,
-      low: record.ohlc.low,
       close: record.ohlc.close,
     };
     return out;
@@ -376,14 +360,12 @@ function csvCell(value) {
 export function toCSV(records, baseValue = BASE_VALUE) {
   const metrics = computeMetrics(records, baseValue);
   const header = [
-    '日期', '开盘', '最高', '最低', '收盘',
+    '日期', '开盘', '收盘',
     '日涨跌额', '日涨跌幅(%)', '相对基准累计(%)', '标题', '心境', '能量', '标签',
   ];
   const rows = metrics.map((r) => [
     r.date,
     r.ohlc.open,
-    r.ohlc.high,
-    r.ohlc.low,
     r.ohlc.close,
     String(r.change),
     // 百分比在没有可比基数时为 null，写出空单元格而不是 0.00

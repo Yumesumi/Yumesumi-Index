@@ -51,18 +51,16 @@ export function renderMethodology(host, state) {
       </section>
 
       <section class="panel glass-soft prose-card reveal">
-        <p class="eyebrow">OHLC</p>
-        <h3>一根 K 线的四个数</h3>
+        <p class="eyebrow">PRICE</p>
+        <h3>一根 K 线的两个数</h3>
         <ul class="rule-list">
           <li><b>开盘 open</b>：默认取上一条有效记录的收盘价，可手动调整。</li>
-          <li><b>最高 high</b>：必须 ≥ open 且 ≥ close。</li>
-          <li><b>最低 low</b>：必须 ≤ open 且 ≤ close。</li>
           <li><b>收盘 close</b>：落笔时的状态，必填。</li>
         </ul>
-        <p>不满足关系的输入会被表单当场拒绝，不会被静默接受或悄悄改写。</p>
+        <p>价格只接受整数。页面不展示最高价、最低价等额外行情字段，K 线只由开盘与收盘构成。</p>
         <h4>缺失日期</h4>
         <p>相邻两条记录可以相隔好几天。没有记录的日期不会生成 K 线，日变化的比较对象是上一条真实记录。同一日期再次保存是<strong>更新</strong>，不是新增。</p>
-        <p>盘面时间轴按真实填写日期排布，没有记录的日期会留出时间间隔。可以用滚轮或双指缩放、拖拽平移，并在 7 天、30 天、90 天、180 天、1 年、3 年和成立来之间切换窗口。</p>
+        <p>盘面时间轴按真实填写日期排布，没有记录的日期会留出时间间隔。可以用滚轮或双指缩放、拖拽平移，并在 7 天、30 天、90 天、180 天、1 年、3 年和成立来之间切换窗口。详细行情表在概览页底部，与盘面窗口同步。</p>
       </section>
 
       <section class="panel glass-soft prose-card reveal">

@@ -1204,3 +1204,41 @@ select {
   .table-wrap--history { max-height: 60vh; }
   .data-table .col-title { max-width: 12rem; }
 }
+
+
+/* ---------- 均线与简化行情 ---------- */
+
+.chart-ma {
+  fill: none;
+  stroke-width: 1.3;
+  opacity: 0.9;
+  filter: none;
+}
+
+.chart-ma-7 { stroke: #c9bdf5; }
+.chart-ma-25 { stroke: #7fb7e8; }
+.chart-ma-99 { stroke: #d9a5c7; }
+
+.legend-swatch.ma.ma-7 { background: #c9bdf5; }
+.legend-swatch.ma.ma-25 { background: #7fb7e8; }
+.legend-swatch.ma.ma-99 { background: #d9a5c7; }
+
+.ma-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.ma-btn {
+  min-width: 3.2rem;
+}
+
+.quote-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .quote-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ma-group { flex-wrap: nowrap; }
+}

@@ -4,7 +4,7 @@
    数据规则：
      · 点位只使用整数，不使用小数
      · 2017-11-11 至 2026-10-28 每天一篇
-     · 2026-10-29 至今天，每天收盘跌幅超过 10%
+     · 2026-10-29 至 2026-11-04 连续 7 天，每天收盘跌幅超过 10%
      · 2026-11-04 梦澄集团破产，指数收于 -30000
      · 只记录指数变化，不写生活与情绪
 
@@ -32,6 +32,7 @@ const HISTORY_END = '2026-10-28';
 const CRASH_START = '2026-10-29';
 const CRASH_FACTOR = 1.105;
 const EVENT_END = '2026-11-04';
+const CRASH_END = EVENT_END;
 const EVENT_DAYS = {
   '2026-11-04': {
     close: -30000,
@@ -40,14 +41,6 @@ const EVENT_DAYS = {
   },
 };
 const PEAK_CLOSE = 36741;
-
-function todayISO() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-const TODAY = todayISO();
 
 /* ---------------- 走势控制点 ----------------
    每一段是 [日期, 收盘点位]，中间按日线性插值。
@@ -189,8 +182,7 @@ function buildHistorySeries() {
 }
 
 function buildCrashSeries(startClose) {
-  const end = TODAY > EVENT_END ? TODAY : EVENT_END;
-  const dates = eachDay(CRASH_START, end);
+  const dates = eachDay(CRASH_START, CRASH_END);
   const series = [];
   let prev = startClose;
 
@@ -214,41 +206,19 @@ function buildCrashSeries(startClose) {
   return series;
 }
 
-/* ---------------- OHLC（全部整数） ---------------- */
+/* ---------------- 开盘/收盘（全部整数） ---------------- */
 
-function buildOHLC(entry, isCrash = false) {
+function buildPrices(entry) {
   const { date, close, prevClose } = entry;
   const prev = prevClose ?? close;
   const seed = hashDate(date);
   const move = close - prev;
-
   const open = Math.round(prev + move * (0.15 + (seed % 25) / 100));
-  const bodyTop = Math.max(open, close);
-  const bodyBottom = Math.min(open, close);
-  const scale = isCrash
-    ? Math.max(30, Math.abs(close) * 0.008)
-    : Math.max(6, Math.abs(close) * 0.002 + Math.abs(move) * 0.25);
-  const upper = Math.round(scale + (seed % 23));
-  const lower = Math.round(scale + ((seed >>> 5) % 23));
-
-  return {
-    open,
-    high: bodyTop + upper,
-    low: bodyBottom - lower,
-    close,
-  };
+  return { open, close };
 }
 
-function buildCrashOHLC(entry) {
-  const seed = hashDate(entry.date);
-  const open = entry.prevClose;
-  const close = entry.close;
-  return {
-    open,
-    high: Math.max(open, close) + 20 + (seed % 70),
-    low: Math.min(open, close) - 20 - ((seed >>> 5) % 70),
-    close,
-  };
+function buildCrashPrices(entry) {
+  return { open: entry.prevClose, close: entry.close };
 }
 
 /* ---------------- 标题与正文 ---------------- */
@@ -306,7 +276,7 @@ function makeBody(date, ohlc, isCrash, event) {
 
   return [
     `本日记录：${date}。`,
-    `开 ${ohlc.open}，高 ${ohlc.high}，低 ${ohlc.low}，收 ${ohlc.close}。`,
+    `开 ${ohlc.open}，收 ${ohlc.close}。`,
     context,
     ...(event?.body ? [event.body] : []),
     ...(isCrash ? ['当日跌幅超过 10%。'] : []),
@@ -317,7 +287,7 @@ function makeBody(date, ohlc, isCrash, event) {
 function journalContent(date, ohlc, prevClose, index, total, ctx) {
   const title = makeTitle(date, ohlc, prevClose, index, total, ctx);
   const body = makeBody(date, ohlc, ctx.crash, ctx.event);
-  return `---\ntitle:${title}\nopen:${ohlc.open}\nhigh:${ohlc.high}\nlow:${ohlc.low}\nclose:${ohlc.close}\n---\n${body}\n`;
+  return `---\ntitle:${title}\nopen:${ohlc.open}\nclose:${ohlc.close}\n---\n${body}\n`;
 }
 
 /* ---------------- 入口 ---------------- */
@@ -331,7 +301,7 @@ const entries = [
   ...crash.map((item) => ({ ...item, crash: true })),
 ].map((item) => ({
   ...item,
-  ohlc: item.crash ? buildCrashOHLC(item) : buildOHLC(item, false),
+  ohlc: item.crash ? buildCrashPrices(item) : buildPrices(item),
 }));
 
 const peak = Math.max(...entries.map((e) => e.close));
@@ -369,8 +339,8 @@ if (args.includes('--stats')) {
     const rate = (item.close - item.prevClose) / Math.abs(item.prevClose) * 100;
     console.log(`  ${item.date} ${item.prevClose} -> ${item.close} (${rate.toFixed(2)}%)`);
   }
-  const nonInteger = entries.filter((e) => [e.ohlc.open, e.ohlc.high, e.ohlc.low, e.ohlc.close].some((v) => !Number.isInteger(v)));
-  console.log(`非整数 OHLC: ${nonInteger.length} 条`);
+  const nonInteger = entries.filter((e) => [e.ohlc.open, e.ohlc.close].some((v) => !Number.isInteger(v)));
+  console.log(`非整数价格: ${nonInteger.length} 条`);
   process.exit(0);
 }
 if (args.includes('--dump')) {

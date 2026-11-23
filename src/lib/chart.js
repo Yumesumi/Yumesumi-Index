@@ -14,6 +14,7 @@ const DAY_MS = 86400000;
 const PAD = { top: 26, right: 20, bottom: 36, left: 12 };
 const PAD_SM = { top: 22, right: 14, bottom: 32, left: 8 };
 const MIN_SPAN = 2 * DAY_MS;
+const MA_PERIODS = [7, 25, 99];
 const observers = new WeakMap();
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -36,12 +37,22 @@ function div(className) {
   return node;
 }
 
-function computeScale(visible, baseValue) {
+function computeScale(visible, baseValue, extraValues = []) {
   let min = Infinity;
   let max = -Infinity;
   for (const m of visible) {
-    if (Number.isFinite(m.ohlc.low)) min = Math.min(min, m.ohlc.low);
-    if (Number.isFinite(m.ohlc.high)) max = Math.max(max, m.ohlc.high);
+    for (const value of [m.ohlc.open, m.ohlc.close]) {
+      if (Number.isFinite(value)) {
+        min = Math.min(min, value);
+        max = Math.max(max, value);
+      }
+    }
+  }
+  for (const value of extraValues) {
+    if (Number.isFinite(value)) {
+      min = Math.min(min, value);
+      max = Math.max(max, value);
+    }
   }
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
     const span = Math.max(Math.abs(baseValue), 1);
@@ -150,8 +161,6 @@ function tooltipHtml(m) {
     ${m.title ? `<div class="tip-title">${escapeHtml(m.title)}</div>` : ''}
     <div class="tip-grid">
       <div><span>开</span><b>${formatNumber(m.ohlc.open)}</b></div>
-      <div><span>高</span><b>${formatNumber(m.ohlc.high)}</b></div>
-      <div><span>低</span><b>${formatNumber(m.ohlc.low)}</b></div>
       <div><span>收</span><b>${formatNumber(m.ohlc.close)}</b></div>
     </div>
     <div class="tip-change ${dir}">${sign}${formatNumber(Math.abs(m.change))}${pct}</div>
@@ -173,11 +182,15 @@ function lowerBound(items, ms) {
  * 渲染盘面。
  * @param {HTMLElement} host 图表挂载点
  * @param {Array} metrics 全部记录（不只是可视窗口）
- * @param {Object} options { baseValue, showMA, window, emptyText, animate, onWindowCommit }
+ * @param {Object} options { baseValue, maVisible, window, emptyText, animate, onWindowCommit }
  */
 export function renderKLine(host, metrics, options = {}) {
   const baseValue = options.baseValue ?? 1000;
-  let showMA = options.showMA ?? true;
+  let maVisible = {
+    7: options.maVisible?.[7] ?? true,
+    25: options.maVisible?.[25] ?? true,
+    99: options.maVisible?.[99] ?? true,
+  };
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   host.textContent = '';
@@ -189,9 +202,12 @@ export function renderKLine(host, metrics, options = {}) {
   }
 
   const all = metrics.map((m) => ({ ...m, ms: dateToMs(m.date) }));
-  const maValues = all.length >= 7
-    ? movingAverage(all.map((m) => m.ohlc.close), 7)
-    : all.map(() => null);
+  const closes = all.map((m) => m.ohlc.close);
+  const maSeries = {
+    7: movingAverage(closes, 7),
+    25: movingAverage(closes, 25),
+    99: movingAverage(closes, 99),
+  };
 
   const firstMs = all[0].ms;
   const lastMs = all[all.length - 1].ms;
@@ -307,7 +323,17 @@ export function renderKLine(host, metrics, options = {}) {
     visible = visibleItems;
     tipItems = visibleItems.map((m) => ({ m, x: x(m.ms) }));
 
-    const scale = computeScale(visibleItems, baseValue);
+    const lo = lowerBound(all, start);
+    const hi = lowerBound(all, end + 1) - 1;
+    const extraValues = [];
+    for (const period of MA_PERIODS) {
+      if (!maVisible[period]) continue;
+      for (let i = Math.max(0, lo - 1); i <= Math.min(all.length - 1, hi + 1); i += 1) {
+        const value = maSeries[period][i];
+        if (Number.isFinite(value)) extraValues.push(value);
+      }
+    }
+    const scale = computeScale(visibleItems, baseValue, extraValues);
     const { min, max } = scale;
     const y = (value) => pad.top + ((max - value) / (max - min)) * plotH;
 
@@ -403,46 +429,45 @@ export function renderKLine(host, metrics, options = {}) {
     /* ---- 蜡烛：按涨跌方向合并为 path，日频长序列也保持轻量 ---- */
     const slot = plotW / Math.max(1, visibleItems.length);
     const candleWidth = Math.max(2, Math.min(13, slot * 0.55));
-    const paths = {
-      up: { wick: [], body: [] },
-      down: { wick: [], body: [] },
-      flat: { wick: [], body: [] },
-    };
+    const bodies = { up: [], down: [], flat: [] };
     const coord = (value) => Math.round(value * 10) / 10;
     for (const m of visibleItems) {
       const cx = x(m.ms);
       const dir = directionClass(m.change);
-      paths[dir].wick.push(`M${coord(cx)} ${coord(y(m.ohlc.high))}V${coord(y(m.ohlc.low))}`);
       const top = y(Math.max(m.ohlc.open, m.ohlc.close));
       const bottom = top + Math.max(1, Math.abs(y(m.ohlc.open) - y(m.ohlc.close)));
       const left = coord(cx - candleWidth / 2);
       const right = coord(cx + candleWidth / 2);
-      paths[dir].body.push(`M${left} ${coord(top)}H${right}V${coord(bottom)}H${left}Z`);
+      bodies[dir].push(`M${left} ${coord(top)}H${right}V${coord(bottom)}H${left}Z`);
     }
     const candleGroup = el('g', { class: 'chart-candles' });
     for (const dir of ['up', 'down', 'flat']) {
-      if (paths[dir].wick.length) {
-        candleGroup.append(el('path', { d: paths[dir].wick.join(''), class: `candle-wick ${dir}` }));
-      }
-      if (paths[dir].body.length) {
-        candleGroup.append(el('path', { d: paths[dir].body.join(''), class: `candle-body ${dir}` }));
+      if (bodies[dir].length) {
+        candleGroup.append(el('path', { d: bodies[dir].join(''), class: `candle-body ${dir}` }));
       }
     }
     svg.append(candleGroup);
 
-    /* ---- MA7：基于全部记录计算，窗口边缘保持连续 ---- */
-    if (showMA && all.length >= 7 && visibleItems.length) {
-      const lo = lowerBound(all, start);
-      const hi = lowerBound(all, end + 1) - 1;
+    /* ---- 均线：MA7 / MA25 / MA99，基于全部记录计算 ---- */
+    if (visibleItems.length) {
       const from = Math.max(0, lo - 1);
       const to = Math.min(all.length - 1, hi + 1);
-      const points = [];
-      for (let i = from; i <= to; i += 1) {
-        const value = maValues[i];
-        if (value === null) continue;
-        points.push(`${x(all[i].ms)},${y(value)}`);
+      for (const period of MA_PERIODS) {
+        if (!maVisible[period]) continue;
+        const points = [];
+        for (let i = from; i <= to; i += 1) {
+          const value = maSeries[period][i];
+          if (value === null) continue;
+          points.push(`${x(all[i].ms)},${y(value)}`);
+        }
+        if (points.length > 1) {
+          svg.append(el('polyline', {
+            points: points.join(' '),
+            class: `chart-ma chart-ma-${period}`,
+            'data-period': period,
+          }));
+        }
       }
-      if (points.length > 1) svg.append(el('polyline', { points: points.join(' '), class: 'chart-ma' }));
     }
 
     if (!visibleItems.length) {
@@ -611,8 +636,8 @@ export function renderKLine(host, metrics, options = {}) {
       lastCommitted = { ...current };
       draw();
     },
-    setShowMA(value) {
-      showMA = !!value;
+    setMAVisible(value) {
+      maVisible = { 7: !!value?.[7], 25: !!value?.[25], 99: !!value?.[99] };
       draw();
     },
   };

@@ -2,6 +2,8 @@
 
 import { RANGES, formatWindowLabel, rangeLabel } from '../lib/selectors.js';
 
+const MA_PERIODS = [7, 25, 99];
+
 export function rangeButtons(state) {
   const custom = state.range === 'custom'
     ? '<span class="seg-btn is-active" data-custom="true" aria-current="true">自定义</span>'
@@ -38,8 +40,20 @@ export function syncRangeButtons(root, state) {
   }
 }
 
-export function maButton(state) {
-  return `<button type="button" class="btn btn-sm ${state.showMA ? 'is-on' : ''}" data-action="toggle-ma" aria-pressed="${state.showMA}">MA7</button>`;
+export function maButtons(state) {
+  return `
+    <div class="ma-group" role="group" aria-label="移动平均线">
+      ${MA_PERIODS.map((period) => `<button type="button" class="btn btn-sm ma-btn ${state.maVisible?.[period] ? 'is-on' : ''}" data-action="toggle-ma" data-period="${period}" aria-pressed="${Boolean(state.maVisible?.[period])}">MA${period}</button>`).join('')}
+    </div>`;
+}
+
+export function syncMAButtons(root, state) {
+  for (const button of root.querySelectorAll('[data-action="toggle-ma"][data-period]')) {
+    const period = Number(button.dataset.period);
+    const active = Boolean(state.maVisible?.[period]);
+    button.classList.toggle('is-on', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
 }
 
 export function rangeSummary(state, window, records = []) {

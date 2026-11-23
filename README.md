@@ -38,16 +38,17 @@ npm run preview   # 在 8099 端口预览 dist/
 │   ├── app.js                  # 状态、hash 路由、模态框、编辑与导入导出
 │   ├── lib/
 │   │   ├── data.js             # 数据加载、校验、指标计算、CSV/JSON 序列化
-│   │   ├── chart.js            # 原生 SVG 盘面（日期时间轴、缩放拖拽、MA7）
+│   │   ├── chart.js            # 原生 SVG 盘面（日期时间轴、缩放拖拽、MA7/25/99）
 │   │   ├── richtext.js         # 日记正文的安全 Markdown 子集
 │   │   ├── selectors.js        # 范围筛选、搜索、年份归档
 │   │   └── ambience.js         # 星场、显现动效、滚动状态、玻璃倾斜
 │   ├── components/
 │   │   ├── layout.js           # 导航、标题、状态、暂存提示
 │   │   ├── ui.js               # 模态框、Toast、下载、空状态
-│   │   ├── entry-card.js       # 日记卡片与行情条
+│   │   ├── entry-card.js       # 日记单行条目与详情行情条
+│   │   ├── chart-controls.js   # 时间窗口与 MA7/25/99 控件
 │   │   └── icons.js            # 内联 SVG 图标
-│   ├── views/                  # overview / journal / history / methodology
+│   ├── views/                  # overview / journal / methodology
 │   └── styles/
 │       ├── tokens.css          # 设计令牌（唯一来源）
 │       ├── base.css            # reset、排版、焦点、骨架
@@ -83,10 +84,12 @@ npm run preview   # 在 8099 端口预览 dist/
 K 线图使用原生 SVG，无图表库：
 
 - 时间轴按真实记录日期排布，缺失日期会留出时间间隔，但不补造 K 线。
+- 概览页首屏直接展示 K 线，页面底部是与盘面窗口同步的详细历史表。
+- 日记页使用单行归档列表；原「历史」页面已移除。
 - 时间窗口锚定最后一条记录，提供 7 天 / 30 天 / 90 天 / 180 天 / 1 年 / 3 年 / 成立来。
 - 桌面端滚轮缩放，移动端双指缩放；鼠标左键或单指拖拽平移。窗口变化后会显示「自定义」。
 - Y 轴固定在左侧；纵轴跟随当前可视窗口自适应，基准线落在范围外时用边缘提示标注。
-- MA7 基于全部真实记录计算，窗口边缘保持连续。
+- MA7 / MA25 / MA99 基于全部真实记录计算，窗口边缘保持连续。
 - 预设窗口、缩放 / 平移与 MA 切换都只更新盘面相关局部，不重建 Hero 或其他页面模块。
 
 ---
@@ -162,12 +165,12 @@ Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import
     "energy": 7,
     "tags": ["生活", "自我观察"],
     "cover": "images/journal/2026-10-27.webp",
-    "ohlc": { "open": 1074, "high": 1088, "low": 1072, "close": 1086 }
+    "ohlc": { "open": 1074, "close": 1086 }
   }
 ]
 ```
 
-`cover` 可选；没有封面时不写这个字段。OHLC 数值必须是 JSON 整数，不能使用小数。日期使用 `YYYY-MM-DD`。
+`cover` 可选；没有封面时不写这个字段。开盘价与收盘价必须是 JSON 整数，不能使用小数。日期使用 `YYYY-MM-DD`。
 
 ### 指数规则
 
@@ -181,7 +184,7 @@ Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import
 - 相邻记录可以相隔数天；中间没有记录的日期不会生成 K 线。
 - 点位可以是负数；涨跌幅分母取前收绝对值，保证符号与涨跌额一致。前收为 0 时涨跌幅显示「—」。
 - 点位只接受整数，不能填写小数。
-- OHLC 必须满足 `high >= open`、`high >= close`、`low <= open`、`low <= close`，否则拒绝保存。
+- 开盘价与收盘价只接受整数；收盘价必填，开盘价缺省取上一条记录的收盘价。
 
 ---
 
@@ -228,8 +231,6 @@ energy: 7
 tags: 生活, 自我观察
 cover: images/journal/2026-10-27.webp
 open: 1074
-high: 1088
-low: 1072
 close: 1086
 ---
 
@@ -242,7 +243,7 @@ close: 1086
 ![傍晚的天空](images/journal/2026-10-27-sky.webp)
 ```
 
-`title`、`close` 与正文必填。`open` 留空取上一条收盘价；`high` / `low` 留空取 `max(open, close)` / `min(open, close)`。日期以文件名为准。
+`title`、`close` 与正文必填。`open` 留空取上一条收盘价。日期以文件名为准。
 
 ### 插图
 
@@ -259,7 +260,7 @@ close: 1086
 | `journal/*.md` | 写作源文件 | 手动编辑 |
 | `data/records.json` | 站点数据源 | 由 `journal.mjs` 合并生成 |
 
-同日期重复提交是更新；缺失日期不补造；OHLC 不合法时整体拒绝且不写入文件；`records.json` 中没有对应日记文件的记录会原样保留。
+同日期重复提交是更新；缺失日期不补造；价格缺失或不是整数时整体拒绝且不写入文件；`records.json` 中没有对应日记文件的记录会原样保留。
 
 ### 网页保存 ≠ Git 提交
 
@@ -277,11 +278,11 @@ close: 1086
 ## 验证
 
 ```bash
-npm run check          # 数据层 74 项 + 日记流程 49 项 + 正文渲染 21 项 + 源数据检查
+npm run check          # 数据层 75 项 + 日记流程 38 项 + 正文渲染 21 项 + 源数据检查
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
-npm run check:e2e      # 102 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
+npm run check:e2e      # 104 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
-npm run verify:production # 31 项线上检查（默认 https://index.yumesumi.cyou/）
+npm run verify:production # 32 项线上检查（默认 https://index.yumesumi.cyou/）
 ```
 
 `e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。

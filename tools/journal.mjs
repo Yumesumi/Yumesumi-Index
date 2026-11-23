@@ -148,7 +148,7 @@ function parseJournalFile(filePath) {
           }
           break;
         }
-        case 'open': case 'high': case 'low': case 'close': {
+        case 'open': case 'close': {
           if (value === '') break;
           const n = Number(value);
           if (!Number.isFinite(n)) errors.push(`${key} 不是数字：${value}`);
@@ -195,15 +195,12 @@ function readJournalFiles() {
  * 把日记记录补全为合法记录：
  *   close 必填（无法推导）
  *   open 缺省取上一条有效记录的收盘价
- *   high 缺省取 max(open, close)，low 缺省取 min(open, close)
  * 补全后仍然要通过 validateRecord，确保默认值不会掩盖非法输入。
  */
 function resolveRecord(entry, prevClose) {
   const r = entry.record;
   const open = Number.isFinite(r.ohlc.open) ? r.ohlc.open : prevClose;
   const close = r.ohlc.close;
-  const high = Number.isFinite(r.ohlc.high) ? r.ohlc.high : Math.max(open, close ?? open);
-  const low = Number.isFinite(r.ohlc.low) ? r.ohlc.low : Math.min(open, close ?? open);
 
   const candidate = normalizeRecord({
     date: r.date,
@@ -213,7 +210,7 @@ function resolveRecord(entry, prevClose) {
     energy: r.energy,
     tags: r.tags,
     cover: r.cover,
-    ohlc: { open, high, low, close },
+    ohlc: { open, close },
   });
 
   const errors = [...entry.errors, ...validateRecord(candidate)];
@@ -269,8 +266,6 @@ function writeRecords(records) {
     if (r.cover) out.cover = r.cover;
     out.ohlc = {
       open: r.ohlc.open,
-      high: r.ohlc.high,
-      low: r.ohlc.low,
       close: r.ohlc.close,
     };
     return out;
@@ -370,7 +365,7 @@ function cmdNew(args) {
   const prev = sortRecords(existing).filter((r) => r.date < date).pop();
   const openDefault = prev ? prev.ohlc.close : baseValue();
 
-  // OHLC 用空占位而不是预填数字：预填的合法数值容易被原样提交，
+  // 价格用空占位而不是预填数字：预填的合法数值容易被原样提交，
   // 那就等于把示例数据伪装成真实记录。空值会在校验阶段明确报错。
   const template = `---
 title:
@@ -379,8 +374,6 @@ energy:
 tags:
 cover:
 open:
-high:
-low:
 close:
 ---
 
@@ -388,8 +381,7 @@ close:
 
 > 必填：title、close，以及正文本身。
 > 可选：mood、energy（0–10）、tags（逗号分隔）、cover（封面图片路径）。
-> open 留空则取上一条记录的收盘价；high 留空则取 max(open, close)；
-> low 留空则取 min(open, close)。
+> open 留空则取上一条记录的收盘价。
 > 上一条的收盘价是 ${openDefault}，可以直接填进 open。
 > 所有点位只接受整数，不能填写小数。
 > 封面与正文插图放在 public/images/journal/，建议 WebP、宽度 ≤1600px。

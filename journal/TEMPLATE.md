@@ -5,8 +5,6 @@ energy:
 tags:
 cover:
 open:
-high:
-low:
 close:
 ---
 
@@ -15,8 +13,7 @@ close:
 > 必填：title、close，以及正文本身。
 > 可选：mood、energy（0–10）、tags（逗号分隔）、cover（封面图片路径）。
 > 所有点位只接受整数，不能填写小数。
-> open 留空则取上一条记录的收盘价；high 留空则取 max(open, close)；
-> low 留空则取 min(open, close)。
+> open 留空则取上一条记录的收盘价。
 > 封面与正文插图放在 public/images/journal/，建议 WebP、宽度 ≤1600px。
 >
 > 日期以文件名为准。修改这个文件后运行：

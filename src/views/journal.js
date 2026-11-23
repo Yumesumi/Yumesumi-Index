@@ -3,7 +3,7 @@
 import { refreshEnhancements } from '../lib/ambience.js';
 import { escapeHtml, groupByYear } from '../lib/data.js';
 import { archiveYears, journalMatches } from '../lib/selectors.js';
-import { entryCard } from '../components/entry-card.js';
+import { entryRow } from '../components/entry-card.js';
 import { emptyState } from '../components/ui.js';
 import { icon } from '../components/icons.js';
 
@@ -18,7 +18,7 @@ export function renderJournal(host, state) {
       <p class="eyebrow">JOURNAL · 归档</p>
       <div class="view-head-row">
         <h2>记录与归档。</h2>
-        <p class="lede">按日期排序、按年份归档。搜索会覆盖标题、正文、心境和标签；点开一条记录可以阅读完整正文。</p>
+        <p class="lede">按日期排序、按年份归档。每条记录保持单行，点开可以阅读完整正文。</p>
       </div>
     </section>
 
@@ -83,7 +83,7 @@ export function renderJournal(host, state) {
         action: state.query ? '' : '<button type="button" class="btn btn-primary" data-action="new">写下第一条记录</button>',
       });
     } else {
-      list.innerHTML = `<div class="journal-list">${visible.map((record, i) => entryCard(record, i)).join('')}</div>`;
+      list.innerHTML = `<div class="journal-list">${visible.map((record, i) => entryRow(record, i)).join('')}</div>`;
       refreshEnhancements(list);
     }
     const remaining = records.length - visible.length;

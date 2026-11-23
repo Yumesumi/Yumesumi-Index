@@ -22,7 +22,6 @@ import { icon } from './components/icons.js';
 import { todayISO } from './lib/selectors.js';
 import { renderOverview } from './views/overview.js';
 import { renderJournal } from './views/journal.js';
-import { renderHistory } from './views/history.js';
 import { renderMethodology } from './views/methodology.js';
 
 const STORAGE_KEY = 'ysi.pending.v1';
@@ -43,7 +42,7 @@ const state = {
   query: '',
   sort: 'desc',
   year: 'all',
-  showMA: true,
+  maVisible: { 7: true, 25: true, 99: true },
   journalLimit: PAGE_SIZE,
   historyLimit: 120,
   loadError: null,
@@ -101,6 +100,13 @@ function currentView() {
   return VIEWS.includes(raw) ? raw : 'overview';
 }
 
+function normalizeHash() {
+  const raw = (location.hash || '#/overview').replace(/^#\/?/, '');
+  if (raw && !VIEWS.includes(raw)) {
+    history.replaceState(null, '', '#/overview');
+  }
+}
+
 const chartHandlers = {
   commitWindow(window) {
     if (!window) return;
@@ -127,7 +133,6 @@ function renderView() {
   }
   if (state.view === 'overview') renderOverview(host, state, chartHandlers);
   else if (state.view === 'journal') renderJournal(host, state);
-  else if (state.view === 'history') renderHistory(host, state, chartHandlers);
   else renderMethodology(host, state);
   refreshEnhancements(host);
 }
@@ -140,6 +145,7 @@ function render() {
 function applyRoute({ scroll = true } = {}) {
   closeModal();
   closeMobileNav();
+  normalizeHash();
   state.view = currentView();
   render();
   if (scroll) {
@@ -157,12 +163,10 @@ function openEditor(date) {
     : {
         date: todayISO(),
         title: '', body: '', mood: '', energy: '', tags: [], cover: '',
-        ohlc: { open: previousClose(todayISO()), high: null, low: null, close: null },
+        ohlc: { open: previousClose(todayISO()), close: null },
       };
 
   const defOpen = existing ? rec.ohlc.open : previousClose(rec.date);
-  const defHigh = Number.isFinite(rec.ohlc.high) ? rec.ohlc.high : defOpen;
-  const defLow = Number.isFinite(rec.ohlc.low) ? rec.ohlc.low : defOpen;
   const defClose = Number.isFinite(rec.ohlc.close) ? rec.ohlc.close : defOpen;
 
   const modal = openModal({
@@ -214,20 +218,12 @@ function openEditor(date) {
         </div>
 
         <div class="form-section">
-          <p class="form-section-title">03 · 行情（只接受整数）</p>
+          <p class="form-section-title">03 · 价格（只接受整数）</p>
           <div class="form-grid">
             <div class="form-row">
               <label for="f-open">开盘价 <span class="req">*</span></label>
               <input class="field-input num" type="number" id="f-open" step="1" value="${defOpen}" required>
               <span class="field-hint">默认上一条收盘价，必须是整数</span>
-            </div>
-            <div class="form-row">
-              <label for="f-high">最高价 <span class="req">*</span></label>
-              <input class="field-input num" type="number" id="f-high" step="1" value="${defHigh}" required>
-            </div>
-            <div class="form-row">
-              <label for="f-low">最低价 <span class="req">*</span></label>
-              <input class="field-input num" type="number" id="f-low" step="1" value="${defLow}" required>
             </div>
             <div class="form-row">
               <label for="f-close">收盘价 <span class="req">*</span></label>
@@ -260,8 +256,6 @@ function openEditor(date) {
     tags: modal.querySelector('#f-tags'),
     cover: modal.querySelector('#f-cover'),
     open: modal.querySelector('#f-open'),
-    high: modal.querySelector('#f-high'),
-    low: modal.querySelector('#f-low'),
     close: modal.querySelector('#f-close'),
   };
   const errorBox = modal.querySelector('#form-error');
@@ -269,7 +263,6 @@ function openEditor(date) {
   const dateHint = modal.querySelector('#date-hint');
   const coverPreview = modal.querySelector('#cover-preview');
   const coverImg = coverPreview.querySelector('img');
-  const touched = { high: Number.isFinite(rec.ohlc.high), low: Number.isFinite(rec.ohlc.low) };
 
   const num = (input) => {
     if (input.value.trim() === '') return null;
@@ -277,35 +270,23 @@ function openEditor(date) {
     return Number.isFinite(value) ? value : null;
   };
 
-  function syncDefaults() {
+  function updatePreview() {
     const o = num(f.open);
     const c = num(f.close);
-    if (o === null || c === null) return;
-    if (!touched.high) f.high.value = String(Math.max(o, c));
-    if (!touched.low) f.low.value = String(Math.min(o, c));
-  }
-
-  function updatePreview() {
-    const o = num(f.open); const h = num(f.high);
-    const l = num(f.low); const c = num(f.close);
-    if ([o, h, l, c].some((v) => v === null)) {
-      preview.innerHTML = '<span class="muted">填写完整的四个数字后显示校验结果</span>';
+    if (o === null || c === null) {
+      preview.innerHTML = '<span class="muted">填写开盘与收盘价后显示预览</span>';
       return;
     }
     const problems = [];
-    if (h < o) problems.push('最高价需 ≥ 开盘价');
-    if (h < c) problems.push('最高价需 ≥ 收盘价');
-    if (l > o) problems.push('最低价需 ≤ 开盘价');
-    if (l > c) problems.push('最低价需 ≤ 收盘价');
+    if (!Number.isInteger(o)) problems.push('开盘价需为整数');
+    if (!Number.isInteger(c)) problems.push('收盘价需为整数');
     const base = state.meta.base_value;
     const change = c - base;
     preview.innerHTML = `
       <span>开 <b>${formatNumber(o)}</b></span>
-      <span>高 <b>${formatNumber(h)}</b></span>
-      <span>低 <b>${formatNumber(l)}</b></span>
       <span>收 <b>${formatNumber(c)}</b></span>
       <span>对基准 <b class="${directionClass(change)}">${formatSigned(change)}</b></span>
-      <span class="${problems.length ? 'down' : 'up'}">${problems.length ? problems.join('；') : 'OHLC 关系有效'}</span>`;
+      <span class="${problems.length ? 'down' : 'up'}">${problems.length ? problems.join('；') : '价格有效'}</span>`;
   }
 
   function updateCover() {
@@ -320,16 +301,11 @@ function openEditor(date) {
     }
   }
 
-  f.high.addEventListener('input', () => { touched.high = true; updatePreview(); });
-  f.low.addEventListener('input', () => { touched.low = true; updatePreview(); });
   f.cover.addEventListener('input', updateCover);
-  [f.open, f.close].forEach((input) => input.addEventListener('input', () => { syncDefaults(); updatePreview(); }));
+  [f.open, f.close].forEach((input) => input.addEventListener('input', updatePreview));
   f.date.addEventListener('change', () => {
     if (!isValidDateString(f.date.value)) return;
-    touched.high = false;
-    touched.low = false;
     f.open.value = String(previousClose(f.date.value));
-    syncDefaults();
     updatePreview();
     const dup = state.merged.find((r) => r.date === f.date.value);
     dateHint.textContent = dup ? `${f.date.value} 已有记录，保存将更新它` : '可补记过去的日期';
@@ -348,7 +324,7 @@ function openEditor(date) {
       energy: f.energy.value === '' ? null : Number(f.energy.value),
       tags: f.tags.value.split(/[、,，;；\s]+/).map((t) => t.trim()).filter(Boolean),
       cover: f.cover.value.trim(),
-      ohlc: { open: num(f.open), high: num(f.high), low: num(f.low), close: num(f.close) },
+      ohlc: { open: num(f.open), close: num(f.close) },
     };
     const errors = validateRecord(raw);
     if (errors.length) {
@@ -624,6 +600,7 @@ async function init() {
   initScrollState();
   initTilt();
   state.pending = loadPending();
+  normalizeHash();
   state.view = currentView();
   bindEvents();
   renderChrome(state);

@@ -755,3 +755,172 @@
   .live-pill i { animation: none; }
   .reveal { opacity: 1; transform: none; }
 }
+
+
+/* ---------- 概览：盘面优先布局 ---------- */
+
+.overview-head {
+  margin-block-end: 1rem;
+}
+
+.overview-head .lede {
+  max-width: 44rem;
+  margin-block-start: 0.35rem;
+  font-size: 0.84rem;
+  line-height: 1.8;
+}
+
+.market-panel {
+  padding: clamp(1rem, 1.8vw, 1.55rem);
+}
+
+.market-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ys-space-md);
+  flex-wrap: wrap;
+}
+
+.market-summary {
+  min-width: min(100%, 20rem);
+}
+
+.market-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ys-text-muted);
+}
+
+.market-value {
+  margin-block-start: 0.25rem;
+  font-size: clamp(2.5rem, 3.4vw, 4.6rem);
+  font-weight: var(--ys-weight-thin);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+  color: var(--ys-text);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 60px rgb(157 132 232 / 18%);
+  overflow-wrap: anywhere;
+}
+
+.market-change {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block-start: 0.4rem;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-change.up { color: var(--ys-up); }
+.market-change.down { color: var(--ys-down); }
+.market-change.flat { color: var(--ys-flat); }
+.market-change .hero-delta { font-weight: var(--ys-weight-medium); }
+.market-change .hero-pct { font-weight: var(--ys-weight-medium); }
+.market-change em {
+  color: var(--ys-text-faint);
+  font-style: normal;
+  font-size: 0.62rem;
+}
+
+.market-meta {
+  margin-block-start: 0.5rem;
+  font-size: 0.64rem;
+  color: var(--ys-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.market-panel .panel-sub {
+  margin-block: 0.7rem 0.2rem;
+}
+
+.market-panel .chart-controls {
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.detailed-history {
+  margin-block-start: var(--ys-gap);
+}
+
+.detailed-history .table-wrap--history {
+  max-height: none;
+}
+
+/* ---------- 日记：单行列表 ---------- */
+
+.journal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-block-start: 1px solid var(--ys-border-subtle);
+}
+
+.journal-row {
+  display: grid;
+  grid-template-columns: 7.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.72rem 0.55rem;
+  border: 0;
+  border-block-end: 1px solid var(--ys-border-subtle);
+  background: transparent;
+  color: var(--ys-text-secondary);
+  text-align: left;
+  transition:
+    background-color var(--ys-dur-fast) var(--ys-ease-out),
+    padding-inline-start var(--ys-dur-base) var(--ys-ease-out),
+    color var(--ys-dur-fast) var(--ys-ease-out);
+}
+
+.journal-row:hover {
+  background: rgb(157 132 232 / 5%);
+  padding-inline-start: 0.85rem;
+}
+
+.journal-row time {
+  font-size: 0.64rem;
+  color: var(--ys-text-faint);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.journal-row-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  color: var(--ys-text);
+  transition: color var(--ys-dur-fast) var(--ys-ease-out);
+}
+
+.journal-row:hover .journal-row-title {
+  color: var(--ys-lavender-soft);
+}
+
+.journal-row-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ys-text-faint);
+}
+
+@media (max-width: 720px) {
+  .journal-row {
+    grid-template-columns: 5.4rem minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    padding-block: 0.65rem;
+  }
+  .journal-row time { font-size: 0.58rem; }
+  .journal-row-title { font-size: 0.8rem; }
+  .market-head { gap: 0.8rem; }
+  .market-panel .chart-controls { justify-content: flex-start; }
+}
