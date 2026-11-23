@@ -6,6 +6,8 @@
      · 2017-11-11 至 2026-10-28 每天一篇
      · 2026-10-29 至 2026-11-04 连续 7 天，每天收盘跌幅超过 10%
      · 2026-11-04 梦澄集团破产，指数收于 -30000
+     · 缓慢上涨与持续阴跌阶段的日波动上限约 ±2.5%
+     · 大趋势交界处安排数日 ±5% 内的多空博弈
      · 2026-11-05 至 2026-11-23 按事件涨跌幅逐日波动
      · 只记录指数变化，不写生活与情绪
 
@@ -105,6 +107,16 @@ const OUTLOOK_DAYS = [
 ];
 
 const ANCHOR_DATES = new Set(ANCHORS.map(([date]) => date));
+const ANCHOR_VALUES = new Map(ANCHORS);
+
+/* 趋势交界：在这些日期前后插入几天的 ±5% 博弈 */
+const BATTLE_WINDOWS = [
+  { center: '2019-12-22', before: 3, after: 3 },
+  { center: '2021-02-24', before: 3, after: 3, reverseAfter: true },
+  { center: '2022-12-31', before: 3, after: 3 },
+  { center: '2024-04-28', before: 3, after: 0 },
+  { center: '2026-10-28', before: 3, after: 0 },
+];
 
 /* ---------------- 伪随机（固定种子，保证可复现） ---------------- */
 
@@ -162,20 +174,46 @@ function baselineValue(date) {
   return last[1];
 }
 
-/** 日级波动基准：周频波动缩小到约 1/5 */
-function dailyVolatilityAt(date) {
+/** 不同阶段的日波动上限 */
+function dailyAmplitude(date) {
   const year = Number(date.slice(0, 4));
-  const base = year <= 2019 ? 0.035 : year <= 2022 ? 0.012 : 0.022;
-  const t = toDate(date).getTime();
-  for (let i = 0; i < ANCHORS.length - 1; i += 1) {
-    const t0 = toDate(ANCHORS[i][0]).getTime();
-    const t1 = toDate(ANCHORS[i + 1][0]).getTime();
-    if (t < t0 || t > t1) continue;
-    const raw = (t - t0) / (t1 - t0);
-    const envelope = Math.sin(raw * Math.PI);
-    return base * Math.max(0.2, envelope) * 0.22;
+  if (year <= 2019) return 0.025;
+  if (year <= 2022) return 0.012;
+  return 0.025;
+}
+
+/**
+ * 预生成每个博弈日的相对水平（相对交界锚点收盘价的百分比）。
+ * 多空双方围绕锚点来回试探，幅度落在 ±5% 内。
+ */
+const BATTLE_LEVELS = new Map();
+{
+  const levelClamp = (value) => Math.max(-0.05, Math.min(0.05, value));
+  for (const window of BATTLE_WINDOWS) {
+    const localRand = makeRandom(hashDate(window.center) + 17);
+
+    let level = 0;
+    let sign = window.reverseAfter ? -1 : 1;
+    for (let k = 1; k <= window.after; k += 1) {
+      level = levelClamp(level + (0.02 + localRand() * 0.03) * sign);
+      const date = addDays(window.center, k);
+      if (date <= HISTORY_END && !ANCHOR_DATES.has(date)) {
+        BATTLE_LEVELS.set(date, { center: window.center, level });
+      }
+      sign *= -1;
+    }
+
+    level = 0;
+    sign = -1;
+    for (let k = 1; k <= window.before; k += 1) {
+      level = levelClamp(level + (0.02 + localRand() * 0.03) * sign);
+      const date = addDays(window.center, -k);
+      if (date >= START_DATE && !ANCHOR_DATES.has(date)) {
+        BATTLE_LEVELS.set(date, { center: window.center, level });
+      }
+      sign *= -1;
+    }
   }
-  return base * 0.22;
 }
 
 /* ---------------- 收盘价序列 ---------------- */
@@ -190,15 +228,32 @@ function buildHistorySeries() {
     const base = baselineValue(date);
     let close = base;
 
-    if (!ANCHOR_DATES.has(date)) {
-      const vol = dailyVolatilityAt(date);
-      const noise = (rand() - 0.5) * 2 * vol
-        + Math.sin(index * 0.63) * vol * 0.35
-        + (rand() - 0.5) * vol * 0.55;
-      close += Math.abs(base || 1) * noise;
+    if (prev !== null && !ANCHOR_DATES.has(date)) {
+      const battle = BATTLE_LEVELS.get(date);
+      if (battle) {
+        // 博弈日：围绕交界锚点做 ±5% 内的来回试探
+        const centerClose = ANCHOR_VALUES.get(battle.center);
+        close = centerClose + battle.level * Math.abs(centerClose);
+      } else {
+        // 常态日：向基线轻微回归，日波动控制在阶段上限内
+        const amplitude = dailyAmplitude(date);
+        const noise = (rand() * 2 - 1) * amplitude * 0.85
+          + Math.sin(index * 0.37) * amplitude * 0.15;
+        const limit = Math.abs(prev) * amplitude;
+        const delta = Math.max(-limit, Math.min(limit, Math.abs(prev) * noise + (base - prev) * 0.06));
+        close = prev + delta;
+      }
     }
 
     close = Math.min(PEAK_CLOSE, Math.round(close));
+    if (prev !== null && !ANCHOR_DATES.has(date)) {
+      // 取整后再限制一次，保证整数收盘价的日波动仍落在阈值内
+      const amplitude = BATTLE_LEVELS.has(date) ? 0.05 : dailyAmplitude(date);
+      const limit = Math.floor(Math.abs(prev) * amplitude);
+      if (Math.abs(close - prev) > limit) {
+        close = prev + Math.sign(close - prev) * limit;
+      }
+    }
     series.push({ date, close, prevClose: prev });
     prev = close;
   });
