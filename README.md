@@ -195,7 +195,8 @@ Vite 会给 JS/CSS/字体/图片加上子路径前缀，`data.js` 通过 `import
 - 2017-11-11 至 2026-10-28 每天一条，整数点位。
 - 2026-10-29 至 2026-11-04 连续 7 天每日收盘跌幅超过 10%。
 - 2026-11-04 梦澄集团破产，指数收于 -30000。
-- 共 3,281 条记录；`data/index.json` 的频率为 `daily`。
+- 2026-11-05 至 2026-11-23 按指定事件逐日波动：-8%、-6%、+4%、+5%、+7%、+3%、-1.5%、+1%、-3%、-4%、-2%、-14%、-22%、-17%、+1%、-8%、+4%、+0.5%、+1%。
+- 共 3,300 条记录；`data/index.json` 的频率为 `daily`。
 
 重新生成会覆盖 `journal/` 下所有日期文件，请先确认没有需要保留的手写日记：
 
@@ -282,7 +283,7 @@ npm run check          # 数据层 75 项 + 日记流程 38 项 + 正文渲染 2
 npm run build          # 构建并检查 dist/ 产物（CNAME、字体、数据、哈希资源）
 npm run check:e2e      # 104 项桌面/移动端/空数据/减少动效/暂存流程（需 playwright-core）
 npm run check:subpath  # 20 项子路径部署验收（自动构建临时产物）
-npm run verify:production # 32 项线上检查（默认 https://index.yumesumi.cyou/）
+npm run verify:production # 33 项线上检查（默认 https://index.yumesumi.cyou/）
 ```
 
 `e2e` 与 `acceptance` 需要本机 Chromium Headless Shell；可用 `YSI_CHROME` 指定路径。`npm run check:e2e` 会自动启动 `dist/` 预览服务器。测试截图输出到 `tools/shots/`（已在 `.gitignore` 中忽略）。

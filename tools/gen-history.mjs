@@ -6,6 +6,7 @@
      · 2017-11-11 至 2026-10-28 每天一篇
      · 2026-10-29 至 2026-11-04 连续 7 天，每天收盘跌幅超过 10%
      · 2026-11-04 梦澄集团破产，指数收于 -30000
+     · 2026-11-05 至 2026-11-23 按事件涨跌幅逐日波动
      · 只记录指数变化，不写生活与情绪
 
    用法：
@@ -33,6 +34,7 @@ const CRASH_START = '2026-10-29';
 const CRASH_FACTOR = 1.105;
 const EVENT_END = '2026-11-04';
 const CRASH_END = EVENT_END;
+const OUTLOOK_END = '2026-11-23';
 const EVENT_DAYS = {
   '2026-11-04': {
     close: -30000,
@@ -77,6 +79,29 @@ const ANCHORS = [
   ['2026-09-10', -13400],
   ['2026-09-27', -12100],
   ['2026-10-28', -12000],
+];
+
+
+const OUTLOOK_DAYS = [
+  { date: '2026-11-05', pct: -8, title: '破产影响延续：指数下跌 8%', body: '梦澄集团破产的影响继续发酵，指数明显回落。' },
+  { date: '2026-11-06', pct: -6, title: '不可抗力灾害：指数下跌 6%', body: '梦澄集团发生不可抗力灾害，市场进一步走弱。' },
+  { date: '2026-11-07', pct: 4, title: 'CEO 启动外交行动：指数上涨 4%', body: '梦澄集团 CEO 启动外交行动，市场情绪短暂回暖。' },
+  { date: '2026-11-08', pct: 5, title: '外交行动第二日：指数上涨 5%', body: '外交行动进入第二天，指数延续反弹。' },
+  { date: '2026-11-09', pct: 7, title: '外交行动收官：指数上涨 7%', body: '外交行动最后一天，市场给出积极反馈。' },
+  { date: '2026-11-10', pct: 3, title: '梳理战略方向：指数上涨 3%', body: '梦澄集团开始整理战略方向，指数小幅走高。' },
+  { date: '2026-11-11', pct: -1.5, title: '未来预期转弱：指数下跌 1.5%', body: '市场对梦澄集团未来期望尽现颓势。' },
+  { date: '2026-11-12', pct: 1, title: '董事会架构调整：指数上涨 1%', body: '梦澄集团董事会进行架构调整，指数微涨。' },
+  { date: '2026-11-13', pct: -3, title: '市场信心转弱：指数下跌 3%', body: '市场对梦澄集团逐渐不再抱有信心。' },
+  { date: '2026-11-14', pct: -4, title: '集团未作回应：指数下跌 4%', body: '面对市场疑问，梦澄集团没有回应。' },
+  { date: '2026-11-15', pct: -2, title: '战略转型未达预期：指数下跌 2%', body: '梦澄集团宣布战略转型，但未达到市场期望。' },
+  { date: '2026-11-16', pct: -14, title: '黑天鹅：内部丑闻曝光，指数下跌 14%', body: '梦澄集团内部曝出丑闻，市场出现黑天鹅式抛售。' },
+  { date: '2026-11-17', pct: -22, title: '进入紧急状态：指数下跌 22%', body: '梦澄集团宣布进入紧急状态，指数大幅下挫。' },
+  { date: '2026-11-18', pct: -17, title: '董事会调整与债务重组：指数下跌 17%', body: '梦澄集团宣布董事会调整与债务重组，市场继续承压。' },
+  { date: '2026-11-19', pct: 1, title: 'CEO 称需要时间恢复：指数上涨 1%', body: '梦澄集团 CEO 表示需要一些时间来恢复。' },
+  { date: '2026-11-20', pct: -8, title: '海外投资损失：指数下跌 8%', body: '对外投资受国际局势影响造成大量损失。' },
+  { date: '2026-11-21', pct: 4, title: '发布 12 个月路线图：指数上涨 4%', body: '梦澄集团发布未来 12 个月开发路线图。' },
+  { date: '2026-11-22', pct: 0.5, title: '回撤修复中：指数上涨 0.5%', body: '指数进入回撤修复阶段。' },
+  { date: '2026-11-23', pct: 1, title: '持续回撤修复：指数上涨 1%', body: '回撤修复仍在持续。' },
 ];
 
 const ANCHOR_DATES = new Set(ANCHORS.map(([date]) => date));
@@ -206,6 +231,29 @@ function buildCrashSeries(startClose) {
   return series;
 }
 
+
+function closeForPct(prev, pct) {
+  const target = pct / 100;
+  let close = Math.round(prev + Math.abs(prev) * target);
+  const displayed = (value) => Math.round(((value - prev) / Math.abs(prev)) * 10000) / 100;
+  for (let i = 0; i < 10 && displayed(close) !== pct; i += 1) {
+    const diff = ((close - prev) / Math.abs(prev)) * 100 - pct;
+    close += diff > 0 ? -1 : 1;
+  }
+  return close;
+}
+
+function buildOutlookSeries(startClose) {
+  const series = [];
+  let prev = startClose;
+  for (const item of OUTLOOK_DAYS) {
+    const close = closeForPct(prev, item.pct);
+    series.push({ ...item, close, prevClose: prev });
+    prev = close;
+  }
+  return series;
+}
+
 /* ---------------- 开盘/收盘（全部整数） ---------------- */
 
 function buildPrices(entry) {
@@ -221,9 +269,14 @@ function buildCrashPrices(entry) {
   return { open: entry.prevClose, close: entry.close };
 }
 
+function buildOutlookPrices(entry) {
+  return { open: entry.prevClose, close: entry.close };
+}
+
 /* ---------------- 标题与正文 ---------------- */
 
 function makeTitle(date, ohlc, prevClose, index, total, ctx) {
+  if (ctx.outlook?.title) return ctx.outlook.title;
   if (ctx.event?.title) return ctx.event.title;
   if (ctx.crash) {
     if (index === total - 1) return '最新一期：连续下跌仍在延续';
@@ -265,7 +318,7 @@ function makeTitle(date, ohlc, prevClose, index, total, ctx) {
   return belowBase ? `${waterMark}·盘整` : `${phase}·窄幅整理`;
 }
 
-function makeBody(date, ohlc, isCrash, event) {
+function makeBody(date, ohlc, isCrash, event, outlook) {
   const year = Number(date.slice(0, 4));
   let context;
   if (year <= 2019) context = '区间在震荡中逐步抬高，波动幅度较大。';
@@ -279,6 +332,8 @@ function makeBody(date, ohlc, isCrash, event) {
     `开 ${ohlc.open}，收 ${ohlc.close}。`,
     context,
     ...(event?.body ? [event.body] : []),
+    ...(outlook?.body ? [outlook.body] : []),
+    ...(outlook ? [`当日较前收${outlook.pct >= 0 ? '上涨' : '下跌'} ${Math.abs(outlook.pct).toFixed(2)}%。`] : []),
     ...(isCrash ? ['当日跌幅超过 10%。'] : []),
     '本日仅记录指数变化。',
   ].join('\n');
@@ -286,7 +341,7 @@ function makeBody(date, ohlc, isCrash, event) {
 
 function journalContent(date, ohlc, prevClose, index, total, ctx) {
   const title = makeTitle(date, ohlc, prevClose, index, total, ctx);
-  const body = makeBody(date, ohlc, ctx.crash, ctx.event);
+  const body = makeBody(date, ohlc, ctx.crash, ctx.event, ctx.outlook);
   return `---\ntitle:${title}\nopen:${ohlc.open}\nclose:${ohlc.close}\n---\n${body}\n`;
 }
 
@@ -295,13 +350,19 @@ function journalContent(date, ohlc, prevClose, index, total, ctx) {
 const args = process.argv.slice(2);
 const history = buildHistorySeries();
 const crash = buildCrashSeries(history[history.length - 1].close);
+const outlook = buildOutlookSeries(crash[crash.length - 1].close);
 
 const entries = [
-  ...history.map((item) => ({ ...item, crash: false, crashIndex: 0 })),
-  ...crash.map((item) => ({ ...item, crash: true })),
+  ...history.map((item) => ({ ...item, crash: false, outlook: false, crashIndex: 0 })),
+  ...crash.map((item) => ({ ...item, crash: true, outlook: false })),
+  ...outlook.map((item) => ({ ...item, crash: false, outlook: true, crashIndex: 0 })),
 ].map((item) => ({
   ...item,
-  ohlc: item.crash ? buildCrashPrices(item) : buildPrices(item),
+  ohlc: item.crash
+    ? buildCrashPrices(item)
+    : item.outlook
+      ? buildOutlookPrices(item)
+      : buildPrices(item),
 }));
 
 const peak = Math.max(...entries.map((e) => e.close));
@@ -320,12 +381,15 @@ entries.forEach((entry, index) => {
     crash: entry.crash,
     crashIndex: entry.crashIndex,
     event: entry.event,
+    outlook: entry.outlook
+      ? { title: entry.title, body: entry.body, pct: entry.pct }
+      : null,
   };
 });
 
 if (args.includes('--stats') || args.includes('--dry')) {
   console.log(`计划生成 ${entries.length} 篇日频日记（${entries[0].date} ~ ${entries[entries.length - 1].date}）`);
-  console.log(`历史 ${history.length} 篇，连续下跌 ${crash.length} 篇`);
+  console.log(`历史 ${history.length} 篇，连续下跌 ${crash.length} 篇，事件波动 ${outlook.length} 篇`);
 }
 if (args.includes('--stats')) {
   const max = entries.reduce((a, b) => (b.close > a.close ? b : a));
@@ -335,7 +399,7 @@ if (args.includes('--stats')) {
   console.log(`当前: ${entries[entries.length - 1].close}`);
   const below = entries.filter((e) => e.close < 0);
   console.log(`水下记录: ${below.length} 条，首次 ${below[0]?.date}`);
-  for (const item of crash) {
+  for (const item of [...crash, ...outlook]) {
     const rate = (item.close - item.prevClose) / Math.abs(item.prevClose) * 100;
     console.log(`  ${item.date} ${item.prevClose} -> ${item.close} (${rate.toFixed(2)}%)`);
   }

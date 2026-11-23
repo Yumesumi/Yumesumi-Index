@@ -338,7 +338,7 @@ export function renderKLine(host, metrics, options = {}) {
     const y = (value) => pad.top + ((max - value) / (max - min)) * plotH;
 
     /* ---- 网格与固定 Y 轴 ---- */
-    const yTicks = niceTicks(min, max, small ? 4 : 5);
+    const yTicks = niceTicks(min, max, small ? 5 : 7);
     for (const tick of yTicks) {
       const ty = y(tick);
       if (ty < pad.top - 1 || ty > pad.top + plotH + 1) continue;

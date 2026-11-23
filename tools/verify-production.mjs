@@ -47,12 +47,20 @@ check('HTML 含环境星场', html.includes('id="ambience-stars"'));
 const records = await (await fetchRetry(`${liveUrl.origin}/data/records.json${cacheBust}`, { headers: { 'cache-control': 'no-cache' } })).json();
 check('线上数据可读取', Array.isArray(records) && records.length > 0, String(records.length));
 check('线上点位全部为整数', records.every((r) => ['open', 'close'].every((k) => Number.isInteger(r.ohlc[k]))));
-check('线上记录数为 3281', records.length === 3281, String(records.length));
-const lastSeven = records.slice(-7).map((r, i) => {
-  const prev = records[records.length - 8 + i];
-  return (r.ohlc.close - prev.ohlc.close) / Math.abs(prev.ohlc.close);
-});
-check('线上最近 7 日连续跌超 10%', lastSeven.every((rate) => rate < -0.1), lastSeven.map((r) => `${(r * 100).toFixed(2)}%`).join(','));
+check('线上记录数为 3300', records.length === 3300, String(records.length));
+const rateOf = (record) => {
+  const previous = records[records.indexOf(record) - 1];
+  return (record.ohlc.close - previous.ohlc.close) / Math.abs(previous.ohlc.close);
+};
+const crashSeven = records.filter((r) => r.date >= '2026-10-29' && r.date <= '2026-11-04');
+check('10-29 至 11-04 连续 7 日跌超 10%',
+  crashSeven.length === 7 && crashSeven.every((r) => rateOf(r) < -0.1),
+  crashSeven.map((r) => `${(rateOf(r) * 100).toFixed(2)}%`).join(','));
+const outlookTargets = [-8, -6, 4, 5, 7, 3, -1.5, 1, -3, -4, -2, -14, -22, -17, 1, -8, 4, 0.5, 1];
+const outlook = records.filter((r) => r.date >= '2026-11-05' && r.date <= '2026-11-23');
+check('11-05 至 11-23 事件涨跌幅符合设定',
+  outlook.length === 19 && outlook.every((r, i) => (rateOf(r) * 100).toFixed(2) === outlookTargets[i].toFixed(2)),
+  outlook.map((r) => `${r.date}:${(rateOf(r) * 100).toFixed(2)}`).join(','));
 const cname = await (await fetchRetry(`${liveUrl.origin}/CNAME${cacheBust}`)).text();
 check('线上 CNAME 正确', cname.trim() === 'index.yumesumi.cyou', cname.trim());
 
